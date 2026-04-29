@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lineage-record.min.schema.json",
+  "type": "object",
+  "required": [
+    "record_type",
+    "record_id",
+    "parent_record_ids",
+    "source_run_id",
+    "source_run_type",
+    "workflow_stage",
+    "created_by",
+    "created_at"
+  ],
+  "properties": {
+    "record_type": {
+      "type": "string",
+      "enum": [
+        "spec",
+        "tis",
+        "brna",
+        "cdna",
+        "amp",
+        "clone",
+        "midi",
+        "eandc",
+        "sec",
+        "slide",
+        "stock"
+      ]
+    },
+    "record_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parent_record_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "source_run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_run_type": {
+      "type": "string",
+      "enum": [
+        "IHC",
+        "PCR",
+        "CLONING",
+        "EANDC",
+        "BULK_RNA",
+        "CDNA",
+        "OTHER"
+      ]
+    },
+    "workflow_stage": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "in_progress",
+        "awaiting_colony_pick",
+        "completed"
+      ]
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "attributes": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

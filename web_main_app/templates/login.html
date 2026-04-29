@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}LineageTrace Login{% endblock %}
+{% block content %}
+<section class="hero-card login-card">
+  <h1>LineageTrace</h1>
+  <p class="lead">Web browser based input forms for laboratory records</p>
+  {% if supabase_oauth_enabled %}
+  <a class="primary-button login-oauth-button" href="/login/google">Sign in with Google</a>
+  {% else %}
+  <p class="error">Google sign-in is not configured for this deployment.</p>
+  {% endif %}
+  {% if error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+</section>
+{% endblock %}

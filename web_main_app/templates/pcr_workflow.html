@@ -1,0 +1,762 @@
+{% extends "base.html" %}
+{% block title %}Polymerase Chain Reaction (PCR){% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Polymerase Chain Reaction (PCR)</h1>
+  <p class="lead">Input parameters for a PCR experiment. Keep all reagents on ice while setting up the reaction.</p>
+  {% if initial_run_id %}
+  <div class="inline-form record-toolbar">
+    <span class="pill">{{ initial_status }}</span>
+    {% if not initial_editable %}
+    <button class="ghost-button" type="button" id="modify_pcr_record_button" onclick="enablePcrEditing()">Modify Record</button>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel stack">
+  <div class="two-column">
+    <label>
+      <span>PCR Run Name</span>
+      <input id="pcr_run_name" type="text" placeholder="e.g., PCR-2026-04-22 GAPDH">
+    </label>
+    <label>
+      <span>Number of Tubes</span>
+      <input id="pcr_num_tubes" type="number" min="1" max="96" value="1">
+    </label>
+    <label>
+      <span>Polymerase</span>
+      <select id="pcr_polymerase">
+        <option>Herculase</option>
+        <option>Taq</option>
+        <option>Superfi</option>
+      </select>
+    </label>
+    <label>
+      <span>Buffer Concentration</span>
+      <select id="buffer_concentration_x" onchange="renderPcrProtocol()">
+        <option value="5">5x</option>
+        <option value="10">10x</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="inline-form">
+    <button class="primary-button" type="button" onclick="buildPcrWorkflow()">Assign Tubes</button>
+    <span id="pcr_status" class="subtle"></span>
+  </div>
+
+  <section id="tube_assignment_builder" class="panel subtle-panel" hidden>
+    <div class="panel-header">
+      <div>
+        <h2>Assign DNA and primers</h2>
+        <p class="subtle">Right-click matching DNA, F, or R cells to select them. The first selected cell becomes the source when you click Group on the right side of that column header.</p>
+      </div>
+    </div>
+    <div id="pcr_assignment_status" class="subtle"></div>
+    <div class="table-wrap">
+      <table class="workflow-table" id="pcr_tube_table"></table>
+    </div>
+  </section>
+
+  <div class="panel subtle-panel">
+    <div class="panel-header">
+      <div>
+        <h2>Thermocycler</h2>
+        <p class="subtle">Input parameters for the thermocycling reaction.</p>
+      </div>
+    </div>
+    <div class="two-column">
+      <label><span>Denaturation Temp (°C)</span><input id="denaturation_temp_c" type="number" step="0.1" value="98"></label>
+      <label><span>Denaturation Time (s)</span><input id="denaturation_time_s" type="number" value="30"></label>
+      <label><span>Annealing Temp (°C)</span><input id="annealing_temp_c" type="number" step="0.1" value="60"></label>
+      <label><span>Annealing Time (s)</span><input id="annealing_time_s" type="number" value="30"></label>
+      <label><span>Elongation Temp (°C)</span><input id="elongation_temp_c" type="number" step="0.1" value="72"></label>
+      <label><span>Elongation Time (s)</span><input id="elongation_time_s" type="number" value="30"></label>
+      <label><span>Cycles</span><input id="num_cycles" type="number" min="1" max="99" value="35"></label>
+      <label><span>Final Extension Temp (°C)</span><input id="final_extension_temp_c" type="number" step="0.1" value="72"></label>
+      <label><span>Final Extension Time (s)</span><input id="final_extension_time_s" type="number" value="300"></label>
+      <label><span>Thermocycler Name</span><input id="thermocycler_name" type="text" placeholder="e.g., Thermocycler 1"></label>
+      <label class="atail-field"><span>A-tail Temp (°C)</span><input id="atail_temp_c" type="number" step="0.1" value="72"></label>
+      <label class="atail-field"><span>A-tail Time (s)</span><input id="atail_time_s" type="number" value="1200"></label>
+    </div>
+  </div>
+</section>
+
+<section id="pcr_sections" class="stack" hidden>
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>PCR Protocol Overview</h2>
+        <p class="subtle">Instructions to complete the PCR reaction.</p>
+      </div>
+      <button class="ghost-button" type="button" onclick="renderPcrProtocol()">Refresh Protocol</button>
+    </div>
+    <pre id="pcr_protocol_preview"></pre>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Final Product Measurements</h2>
+        <p class="subtle">Record final amplicon length, concentration, and storage location for each tube before saving.</p>
+      </div>
+      <button class="ghost-button" type="button" onclick="renderPcrFinalProducts()">Refresh Measurements</button>
+    </div>
+    <div class="table-wrap">
+      <table class="workflow-table" id="pcr_final_products_table"></table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <form method="post" action="/pcr/save" class="stack" onsubmit="return preparePcrSave()">
+      <input type="hidden" name="run_id" id="pcr_run_id" value="{{ initial_run_id }}">
+      <input type="hidden" name="save_mode" id="pcr_save_mode" value="submitted">
+      <input type="hidden" name="payload_json" id="pcr_payload_json">
+      <div class="inline-form">
+        <button class="ghost-button" type="submit" onclick="setPcrSaveMode('draft')">Save Draft</button>
+        <button class="primary-button" type="submit" onclick="setPcrSaveMode('submitted')">Submit Record</button>
+      </div>
+    </form>
+  </section>
+</section>
+
+<datalist id="pcr_storage_suggestions_list"></datalist>
+<datalist id="pcr_forward_primers_list"></datalist>
+<datalist id="pcr_reverse_primers_list"></datalist>
+
+<script>
+const INITIAL_PAYLOAD = {{ initial_payload_json | safe }};
+const PCR_PRIMERS = {{ pcr_primers_json | safe }};
+const STORAGE_SUGGESTIONS = {{ storage_suggestions_json | safe }};
+const PCR_PRODUCT_DISPOSITIONS = ["gel purified", "pcr purified", "stored", "discarded"];
+let recordEditable = {{ "true" if initial_editable else "false" }};
+let tubeState = [];
+let selectedAssignments = [];
+let primerWarnings = {};
+let primerCustomMode = {};
+
+const ASSIGNMENT_META = {
+  dna_identity: { label: "DNA", inputLabel: "DNA Identity" },
+  forward_primer: { label: "F", inputLabel: "F Primer" },
+  reverse_primer: { label: "R", inputLabel: "R Primer" },
+};
+
+function primerOrientationForField(field) {
+  if (field === "forward_primer") return "F";
+  if (field === "reverse_primer") return "R";
+  return "";
+}
+
+function primerInventoryRecord(name, orientation) {
+  const cleanName = String(name || "").trim().toLowerCase();
+  const cleanOrientation = String(orientation || "").trim().toUpperCase();
+  if (!cleanName || !cleanOrientation) return null;
+  return PCR_PRIMERS.find((primer) =>
+    String(primer.name || "").trim().toLowerCase() === cleanName
+    && String(primer.orientation || "").trim().toUpperCase() === cleanOrientation
+  ) || null;
+}
+
+function primerWarningKey(idx, field) {
+  return `${idx}:${field}`;
+}
+
+function primerCustomKey(idx, field) {
+  return `${idx}:${field}`;
+}
+
+function primerStockWarningText(field, value) {
+  const orientation = primerOrientationForField(field);
+  if (!orientation) return "";
+  const primer = primerInventoryRecord(value, orientation);
+  if (!primer) return "";
+  if (String(primer.aliquot || "").trim().toLowerCase() !== "stock") return "";
+  return "Using a primer stock is not recommended. Recommended dilution 5x.";
+}
+
+function primerWarningMarkup(idx, field) {
+  const warning = primerWarnings[primerWarningKey(idx, field)] || "";
+  if (!warning) return "";
+  return `<div class="field-warning">${escapeHtml(warning)}</div>`;
+}
+
+function populatePrimerDatalists() {
+  const forwardList = document.getElementById("pcr_forward_primers_list");
+  const reverseList = document.getElementById("pcr_reverse_primers_list");
+  const forwardNames = Array.from(new Set(PCR_PRIMERS
+    .filter((primer) => String(primer.orientation || "").toUpperCase() === "F")
+    .map((primer) => String(primer.name || "").trim())
+    .filter(Boolean))).sort();
+  const reverseNames = Array.from(new Set(PCR_PRIMERS
+    .filter((primer) => String(primer.orientation || "").toUpperCase() === "R")
+    .map((primer) => String(primer.name || "").trim())
+    .filter(Boolean))).sort();
+  forwardList.innerHTML = forwardNames.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("");
+  reverseList.innerHTML = reverseNames.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("");
+}
+
+function primerNamesForOrientation(orientation) {
+  return Array.from(new Set(PCR_PRIMERS
+    .filter((primer) => String(primer.orientation || "").toUpperCase() === orientation)
+    .map((primer) => String(primer.name || "").trim())
+    .filter(Boolean))).sort();
+}
+
+function primerSelectMarkup(idx, field, currentValue) {
+  const orientation = primerOrientationForField(field);
+  const names = primerNamesForOrientation(orientation);
+  const normalizedCurrent = String(currentValue || "").trim();
+  const isCustom = !!primerCustomMode[primerCustomKey(idx, field)] || (normalizedCurrent && !names.includes(normalizedCurrent));
+  const selectValue = isCustom ? "__custom__" : normalizedCurrent;
+  return `
+    <select
+      class="${assignmentInputClass(idx, field)}"
+      onchange="updatePrimerSelection(${idx}, '${field}', this.value)"
+      oncontextmenu="return handleAssignmentRightClick(event, ${idx}, '${field}')"
+    >
+      <option value=""></option>
+      ${names.map((name) => `<option value="${escapeHtml(name)}" ${selectValue === name ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+      <option value="__custom__" ${selectValue === "__custom__" ? "selected" : ""}>Custom...</option>
+    </select>
+    ${selectValue === "__custom__" ? `
+      <input
+        class="inventory-inline-input ${assignmentInputClass(idx, field)}"
+        value="${escapeHtml(normalizedCurrent)}"
+        placeholder="Enter new primer name"
+        onchange="updatePrimerCustomValue(${idx}, '${field}', this.value)"
+        oncontextmenu="return handleAssignmentRightClick(event, ${idx}, '${field}')"
+      >
+    ` : ""}
+    ${primerWarningMarkup(idx, field)}
+  `;
+}
+
+function buildPcrWorkflow() {
+  const runName = document.getElementById("pcr_run_name").value.trim();
+  const numTubes = Math.max(1, Math.min(96, parseInt(document.getElementById("pcr_num_tubes").value || "1", 10)));
+  if (!runName) {
+    alert("PCR run name is required.");
+    return;
+  }
+  tubeState = [];
+  primerWarnings = {};
+  primerCustomMode = {};
+  for (let idx = 0; idx < numTubes; idx += 1) {
+    tubeState.push({
+      tube: idx + 1,
+      dna_identity: "",
+      forward_primer: "",
+      reverse_primer: "",
+      note: "",
+      length: "",
+      concentration: "",
+      disposition: "stored",
+      storage_location: "",
+      atail_enabled: false,
+    });
+  }
+  clearAssignmentSelection();
+  document.getElementById("pcr_storage_suggestions_list").innerHTML = STORAGE_SUGGESTIONS.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("");
+  populatePrimerDatalists();
+  document.getElementById("tube_assignment_builder").hidden = false;
+  document.getElementById("pcr_sections").hidden = false;
+  document.getElementById("pcr_status").textContent = `${numTubes} tubes ready`;
+  renderPcrTable();
+  renderPcrProtocol();
+  renderPcrFinalProducts();
+}
+
+function renderPcrTable() {
+  const table = document.getElementById("pcr_tube_table");
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Tube</th>
+        <th><div class="table-header-row"><span>DNA Identity</span><button class="ghost-button compact-group-button" type="button" onclick="applySelectedAssignmentGroup('dna_identity')">Group</button></div></th>
+        <th><div class="table-header-row"><span>F Primer</span><button class="ghost-button compact-group-button" type="button" onclick="applySelectedAssignmentGroup('forward_primer')">Group</button></div></th>
+        <th><div class="table-header-row"><span>R Primer</span><button class="ghost-button compact-group-button" type="button" onclick="applySelectedAssignmentGroup('reverse_primer')">Group</button></div></th>
+        <th>Note</th>
+        <th>A tail?</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${tubeState.map((tube, idx) => `
+        <tr>
+          <td>Tube ${tube.tube}</td>
+          <td>
+            <input
+              class="${assignmentInputClass(idx, 'dna_identity')}"
+              value="${escapeHtml(tube.dna_identity)}"
+              onchange="updateTubeField(${idx}, 'dna_identity', this.value)"
+              oncontextmenu="return handleAssignmentRightClick(event, ${idx}, 'dna_identity')"
+            >
+          </td>
+          <td>
+            ${primerSelectMarkup(idx, 'forward_primer', tube.forward_primer)}
+          </td>
+          <td>
+            ${primerSelectMarkup(idx, 'reverse_primer', tube.reverse_primer)}
+          </td>
+          <td>
+            <input
+              value="${escapeHtml(tube.note || "")}"
+              placeholder="e.g. leftmost tube, labeled tube A"
+              onchange="updateTubeField(${idx}, 'note', this.value)"
+            >
+          </td>
+          <td class="group-select-cell">
+            <input
+              type="checkbox"
+              ${tube.atail_enabled ? "checked" : ""}
+              onchange="updateAtail(${idx}, this.checked)"
+            >
+          </td>
+        </tr>
+      `).join("")}
+    </tbody>
+  `;
+  updateAssignmentStatus();
+}
+
+function updateTubeField(idx, key, value) {
+  tubeState[idx][key] = value;
+  if (key === "forward_primer" || key === "reverse_primer") {
+    const warning = primerStockWarningText(key, value);
+    if (warning) {
+      primerWarnings[primerWarningKey(idx, key)] = warning;
+    } else {
+      delete primerWarnings[primerWarningKey(idx, key)];
+    }
+  }
+  updateAssignmentStatus();
+  renderPcrTable();
+  renderPcrProtocol();
+  renderPcrFinalProducts();
+}
+
+function updatePrimerSelection(idx, field, value) {
+  if (value === "__custom__") {
+    primerCustomMode[primerCustomKey(idx, field)] = true;
+    delete primerWarnings[primerWarningKey(idx, field)];
+    renderPcrTable();
+    renderPcrProtocol();
+    renderPcrFinalProducts();
+    return;
+  }
+  delete primerCustomMode[primerCustomKey(idx, field)];
+  updateTubeField(idx, field, value);
+}
+
+function updatePrimerCustomValue(idx, field, value) {
+  primerCustomMode[primerCustomKey(idx, field)] = true;
+  updateTubeField(idx, field, value);
+}
+
+function updateAtail(idx, checked) {
+  tubeState[idx].atail_enabled = checked;
+  renderPcrProtocol();
+  renderPcrFinalProducts();
+}
+
+function renderPcrFinalProducts() {
+  const table = document.getElementById("pcr_final_products_table");
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Tube</th>
+        <th>DNA Identity</th>
+        <th>F Primer</th>
+        <th>R Primer</th>
+        <th>Length</th>
+        <th>Concentration</th>
+        <th>Disposition</th>
+        <th>Storage Location</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${tubeState.map((tube, idx) => `
+        <tr>
+          <td>Tube ${tube.tube}</td>
+          <td>${escapeHtml(tube.dna_identity || "")}</td>
+          <td>${escapeHtml(tube.forward_primer || "")}</td>
+          <td>${escapeHtml(tube.reverse_primer || "")}</td>
+          <td><input value="${escapeHtml(tube.length || "")}" placeholder="e.g. 450 bp" onchange="updateTubeField(${idx}, 'length', this.value)"></td>
+          <td><input value="${escapeHtml(tube.concentration || "")}" placeholder="e.g. 12 ng/µL" onchange="updateTubeField(${idx}, 'concentration', this.value)"></td>
+          <td>
+            <select onchange="updateTubeField(${idx}, 'disposition', this.value)">
+              ${PCR_PRODUCT_DISPOSITIONS.map((disposition) => `
+                <option value="${escapeHtml(disposition)}" ${String(tube.disposition || "stored").toLowerCase() === disposition ? "selected" : ""}>${escapeHtml(disposition)}</option>
+              `).join("")}
+            </select>
+          </td>
+          <td><input list="pcr_storage_suggestions_list" value="${escapeHtml(tube.storage_location || "")}" placeholder="e.g. freezer box A3" onchange="updateTubeField(${idx}, 'storage_location', this.value)"></td>
+        </tr>
+      `).join("")}
+    </tbody>
+  `;
+}
+
+function assignmentKey(idx, field) {
+  return `${idx}:${field}`;
+}
+
+function clearAssignmentSelection() {
+  selectedAssignments = [];
+  renderPcrTable();
+}
+
+function selectedAssignmentField() {
+  if (!selectedAssignments.length) return "";
+  return selectedAssignments[0].field;
+}
+
+function assignmentInputClass(idx, field) {
+  const selected = selectedAssignments.some((item) => item.key === assignmentKey(idx, field));
+  return selected ? "pcr-assignment-input selected" : "pcr-assignment-input";
+}
+
+function updateAssignmentStatus() {
+  const el = document.getElementById("pcr_assignment_status");
+  if (!selectedAssignments.length) {
+    el.textContent = "No grouped DNA/F/R cells selected.";
+    return;
+  }
+  const field = selectedAssignmentField();
+  const label = ASSIGNMENT_META[field].label;
+  const source = selectedAssignments[0];
+  el.textContent = `${selectedAssignments.length} ${label} cell(s) selected. Source is Tube ${tubeState[source.idx].tube}.`;
+}
+
+function handleAssignmentRightClick(event, idx, field) {
+  event.preventDefault();
+  toggleAssignmentSelection(idx, field);
+  return false;
+}
+
+function toggleAssignmentSelection(idx, field) {
+  const currentField = selectedAssignmentField();
+  if (currentField && currentField !== field) {
+    selectedAssignments = [];
+  }
+  const key = assignmentKey(idx, field);
+  const existingIndex = selectedAssignments.findIndex((item) => item.key === key);
+  if (existingIndex >= 0) {
+    selectedAssignments.splice(existingIndex, 1);
+  } else {
+    selectedAssignments.push({ key, idx, field });
+  }
+  renderPcrTable();
+}
+
+function applySelectedAssignmentGroup(field) {
+  if (selectedAssignments.length < 2) return;
+  if (selectedAssignmentField() !== field) return;
+  let source = "";
+  for (const item of selectedAssignments) {
+    const value = (tubeState[item.idx][field] || "").trim();
+    if (value) {
+      source = value;
+      break;
+    }
+  }
+  if (!source) {
+    clearAssignmentSelection();
+    return;
+  }
+  selectedAssignments.forEach((item) => {
+    tubeState[item.idx][field] = source;
+  });
+  clearAssignmentSelection();
+  renderPcrTable();
+  renderPcrProtocol();
+}
+
+function thermocyclerPayload() {
+  const atailEnabled = tubeState.some((tube) => tube.atail_enabled);
+  const payload = {
+    denaturation_temp_c: Number(document.getElementById("denaturation_temp_c").value || 98),
+    denaturation_time_s: Number(document.getElementById("denaturation_time_s").value || 30),
+    annealing_temp_c: Number(document.getElementById("annealing_temp_c").value || 60),
+    annealing_time_s: Number(document.getElementById("annealing_time_s").value || 30),
+    elongation_temp_c: Number(document.getElementById("elongation_temp_c").value || 72),
+    elongation_time_s: Number(document.getElementById("elongation_time_s").value || 30),
+    num_cycles: Number(document.getElementById("num_cycles").value || 35),
+    final_extension_temp_c: Number(document.getElementById("final_extension_temp_c").value || 72),
+    final_extension_time_s: Number(document.getElementById("final_extension_time_s").value || 300),
+    thermocycler_name: document.getElementById("thermocycler_name").value.trim(),
+    atail_enabled: atailEnabled,
+  };
+  if (atailEnabled) {
+    payload.atail_temp_c = Number(document.getElementById("atail_temp_c").value || 72);
+    payload.atail_time_s = Number(document.getElementById("atail_time_s").value || 1200);
+  }
+  return payload;
+}
+
+function renderPcrProtocol() {
+  const runName = document.getElementById("pcr_run_name").value.trim() || "(unnamed)";
+  const polymerase = document.getElementById("pcr_polymerase").value.trim();
+  const bufferConcentration = Number(document.getElementById("buffer_concentration_x").value || 5);
+  const tc = thermocyclerPayload();
+  const numTubes = tubeState.length;
+  const perTubeBaseBuffer = 20 / bufferConcentration;
+  const perTubeBaseWater = 18.0 - perTubeBaseBuffer;
+  const perTubeBaseDntp = 0.25;
+  const perTubeForwardPrimer = 0.5;
+  const perTubeReversePrimer = 0.5;
+  const perTubeDna = 0.5;
+  const perTubePolymerase = 0.25;
+  const perTubePrimerPairMix = perTubeBaseWater + perTubeBaseBuffer + perTubeBaseDntp + perTubeForwardPrimer + perTubeReversePrimer;
+  const totalReactionVolume = perTubePrimerPairMix + perTubeDna + perTubePolymerase;
+
+  const baseMixFactor = 1.2;
+  const primerMixFactor = 1.1;
+
+  const baseMixWater = perTubeBaseWater * numTubes * baseMixFactor;
+  const baseMixBuffer = perTubeBaseBuffer * numTubes * baseMixFactor;
+  const baseMixDntp = perTubeBaseDntp * numTubes * baseMixFactor;
+  const baseMixTotal = (perTubeBaseWater + perTubeBaseBuffer + perTubeBaseDntp) * numTubes * baseMixFactor;
+  const atailTubes = tubeState.filter((tube) => tube.atail_enabled);
+  const atailCount = atailTubes.length;
+  const atailMixFactor = 1.1;
+  const atailPerTubeBuffer = 2.4;
+  const atailPerTubeWater = 1.4;
+  const atailPerTubeTaq = 0.2;
+  const atailPerTubeTotal = atailPerTubeBuffer + atailPerTubeWater + atailPerTubeTaq;
+
+  const primerGroups = new Map();
+  tubeState.forEach((tube) => {
+    const forward = (tube.forward_primer || "").trim();
+    const reverse = (tube.reverse_primer || "").trim();
+    const key = `${forward}|||${reverse}`;
+    if (!primerGroups.has(key)) {
+      primerGroups.set(key, {
+        forward,
+        reverse,
+        count: 0,
+      });
+    }
+    primerGroups.get(key).count += 1;
+  });
+
+  const lines = [];
+  lines.push("============================================================");
+  lines.push("PCR PROTOCOL");
+  lines.push("============================================================");
+  lines.push(`Run Name:    ${runName}`);
+  lines.push(`Polymerase:  ${polymerase}`);
+  lines.push(`Buffer:      ${bufferConcentration}x stock`);
+  lines.push(`Tubes:       ${numTubes}`);
+  lines.push("");
+  lines.push("----------------------------------------");
+  lines.push("TUBE LAYOUT");
+  lines.push("----------------------------------------");
+  tubeState.forEach((tube) => {
+    lines.push(`  Tube ${tube.tube}: DNA=${tube.dna_identity || "(empty)"}  F=${tube.forward_primer || "(empty)"}  R=${tube.reverse_primer || "(empty)"}  Note=${tube.note || "-"}`);
+  });
+  lines.push("");
+  lines.push("----------------------------------------");
+  lines.push("REACTION COMPOSITION (PER TUBE)");
+  lines.push("----------------------------------------");
+  lines.push(`  Nuclease-free water              ${perTubeBaseWater.toFixed(2)} µL`);
+  lines.push(`  ${polymerase} buffer (${bufferConcentration}x)         ${perTubeBaseBuffer.toFixed(2)} µL`);
+  lines.push(`  dNTPs (25 mM)                     ${perTubeBaseDntp.toFixed(2)} µL`);
+  lines.push(`  Forward primer                    ${perTubeForwardPrimer.toFixed(2)} µL`);
+  lines.push(`  Reverse primer                    ${perTubeReversePrimer.toFixed(2)} µL`);
+  lines.push(`  DNA                               ${perTubeDna.toFixed(2)} µL`);
+  lines.push(`  ${polymerase}                     ${perTubePolymerase.toFixed(2)} µL`);
+  lines.push("  ----------------------------------------");
+  lines.push(`  Total                             ${totalReactionVolume.toFixed(2)} µL`);
+  lines.push("");
+  lines.push("----------------------------------------");
+  lines.push("SETUP STRATEGY");
+  lines.push("----------------------------------------");
+  lines.push("  1. Add 0.5 µL DNA to each PCR tube first.");
+  lines.push(`  2. Make one base mix without primers or ${polymerase}.`);
+  lines.push(`     Use a ${baseMixFactor.toFixed(1)}x factor across all ${numTubes} tubes.`);
+  lines.push("  3. For each unique primer pair, make a 1.1x primer-pair mix from the base mix.");
+  lines.push(`  4. Add ${perTubePrimerPairMix.toFixed(2)} µL of the correct primer-pair mix to each DNA tube.`);
+  lines.push(`  5. Add ${perTubePolymerase.toFixed(2)} µL ${polymerase} last, then load the thermocycler.`);
+  lines.push("");
+  lines.push("----------------------------------------");
+  lines.push("MASTER MASTER MIX (NO PRIMERS, NO DNA, NO POLYMERASE)");
+  lines.push("----------------------------------------");
+  lines.push(`  Tubes covered                     ${numTubes}`);
+  lines.push(`  Overage factor                    ${baseMixFactor.toFixed(1)}x`);
+  lines.push(`  Nuclease-free water               ${baseMixWater.toFixed(2)} µL`);
+  lines.push(`  ${polymerase} buffer (${bufferConcentration}x)          ${baseMixBuffer.toFixed(2)} µL`);
+  lines.push(`  dNTPs (25 mM)                     ${baseMixDntp.toFixed(2)} µL`);
+  lines.push("  ----------------------------------------");
+  lines.push(`  Base mix total                    ${baseMixTotal.toFixed(2)} µL`);
+  lines.push("");
+  lines.push("----------------------------------------");
+  lines.push("PRIMER-PAIR MIXES (FROM BASE MIX)");
+  lines.push("----------------------------------------");
+  if (primerGroups.size === 0) {
+    lines.push("  No primer-pair groups yet.");
+  } else {
+    let groupIndex = 1;
+    for (const group of primerGroups.values()) {
+      const pairLabel = `${group.forward || "(empty F)"} / ${group.reverse || "(empty R)"}`;
+      const tubeCount = group.count;
+      const scaledCount = tubeCount * primerMixFactor;
+      const primerMixBase = (perTubeBaseWater + perTubeBaseBuffer + perTubeBaseDntp) * scaledCount;
+      const forwardVol = perTubeForwardPrimer * scaledCount;
+      const reverseVol = perTubeReversePrimer * scaledCount;
+      const totalVol = perTubePrimerPairMix * scaledCount;
+      lines.push(`  Primer Mix ${groupIndex}: ${pairLabel}`);
+      lines.push(`    Tubes covered                   ${tubeCount}`);
+      lines.push(`    Overage factor                  ${primerMixFactor.toFixed(1)}x`);
+      lines.push(`    Base mix aliquot                ${primerMixBase.toFixed(2)} µL`);
+      lines.push(`    Forward primer                  ${forwardVol.toFixed(2)} µL`);
+      lines.push(`    Reverse primer                  ${reverseVol.toFixed(2)} µL`);
+      lines.push("    ----------------------------------------");
+      lines.push(`    Primer-pair mix total           ${totalVol.toFixed(2)} µL`);
+      lines.push(`    Add per tube                    ${perTubePrimerPairMix.toFixed(2)} µL`);
+      lines.push("");
+      groupIndex += 1;
+    }
+  }
+  lines.push("----------------------------------------");
+  lines.push("THERMOCYCLER PROGRAM");
+  lines.push("----------------------------------------");
+  lines.push(`  Denaturation:    ${tc.denaturation_temp_c}°C for ${tc.denaturation_time_s}s`);
+  lines.push(`  Annealing:       ${tc.annealing_temp_c}°C for ${tc.annealing_time_s}s`);
+  lines.push(`  Elongation:      ${tc.elongation_temp_c}°C for ${tc.elongation_time_s}s`);
+  lines.push(`  Cycles:          ${tc.num_cycles}`);
+  lines.push(`  Final Extension: ${tc.final_extension_temp_c}°C for ${tc.final_extension_time_s}s`);
+  if (tc.thermocycler_name) lines.push(`  Thermocycler:    ${tc.thermocycler_name}`);
+  lines.push("");
+  if (atailCount > 0) {
+    lines.push("----------------------------------------");
+    lines.push("A-TAILING");
+    lines.push("----------------------------------------");
+    lines.push(`  Tubes selected                    ${atailCount}`);
+    lines.push(`  Overage factor                    ${atailMixFactor.toFixed(1)}x`);
+    lines.push(`  10x Taq buffer                    ${(atailPerTubeBuffer * atailCount * atailMixFactor).toFixed(2)} µL`);
+    lines.push(`  Nuclease-free water               ${(atailPerTubeWater * atailCount * atailMixFactor).toFixed(2)} µL`);
+    lines.push(`  Taq polymerase                    ${(atailPerTubeTaq * atailCount * atailMixFactor).toFixed(2)} µL`);
+    lines.push("  ----------------------------------------");
+    lines.push(`  A-tail mix total                  ${(atailPerTubeTotal * atailCount * atailMixFactor).toFixed(2)} µL`);
+    lines.push(`  Add per selected tube             ${atailPerTubeTotal.toFixed(2)} µL`);
+    lines.push(`  Apply to tubes                    ${atailTubes.map((tube) => `Tube ${tube.tube}`).join(", ")}`);
+    lines.push(`  Incubate at ${tc.atail_temp_c}°C for ${tc.atail_time_s}s.`);
+    lines.push("");
+  }
+  document.getElementById("pcr_protocol_preview").textContent = lines.join("\n");
+}
+
+function setPcrSaveMode(mode) {
+  document.getElementById("pcr_save_mode").value = mode;
+}
+
+function enablePcrEditing() {
+  recordEditable = true;
+  applyPcrReadonlyState();
+  const button = document.getElementById("modify_pcr_record_button");
+  if (button) button.remove();
+}
+
+function applyPcrReadonlyState() {
+  document.querySelectorAll(".panel input, .panel select, .panel textarea, #pcr_sections button, #tube_assignment_builder button").forEach((el) => {
+    if (el.id === "pcr_run_id" || el.id === "pcr_save_mode" || el.id === "pcr_payload_json") return;
+    if (el.id === "modify_pcr_record_button") return;
+    el.disabled = !recordEditable;
+  });
+}
+
+function loadExistingPcrRecord() {
+  if (!INITIAL_PAYLOAD || Object.keys(INITIAL_PAYLOAD).length === 0) return;
+  document.getElementById("pcr_run_name").value = INITIAL_PAYLOAD.pcr_run_name || "";
+  document.getElementById("pcr_num_tubes").value = INITIAL_PAYLOAD.num_tubes || 1;
+  document.getElementById("pcr_polymerase").value = INITIAL_PAYLOAD.polymerase || "Herculase";
+  document.getElementById("buffer_concentration_x").value = String(INITIAL_PAYLOAD.buffer_concentration_x || 5);
+  const tc = INITIAL_PAYLOAD.thermocycler || {};
+  ["denaturation_temp_c","denaturation_time_s","annealing_temp_c","annealing_time_s","elongation_temp_c","elongation_time_s","num_cycles","final_extension_temp_c","final_extension_time_s","thermocycler_name","atail_temp_c","atail_time_s"].forEach((key) => {
+    const el = document.getElementById(key);
+    if (el && tc[key] !== undefined && tc[key] !== null) el.value = tc[key];
+  });
+  buildPcrWorkflow();
+  const tubes = Array.isArray(INITIAL_PAYLOAD.tubes) ? INITIAL_PAYLOAD.tubes : [];
+  tubeState = tubes.map((tube, idx) => ({
+    tube: tube.tube || idx + 1,
+    dna_identity: tube.dna_identity || "",
+    forward_primer: tube.forward_primer || "",
+    reverse_primer: tube.reverse_primer || "",
+    note: tube.note || "",
+    length: tube.length || "",
+    concentration: tube.concentration || "",
+    disposition: PCR_PRODUCT_DISPOSITIONS.includes(String(tube.disposition || "").toLowerCase()) ? String(tube.disposition || "").toLowerCase() : "stored",
+    storage_location: tube.storage_location || "",
+      atail_enabled: !!tube.atail_enabled,
+    }));
+  primerWarnings = {};
+  primerCustomMode = {};
+  tubeState.forEach((tube, idx) => {
+    for (const field of ["forward_primer", "reverse_primer"]) {
+      const warning = primerStockWarningText(field, tube[field] || "");
+      if (warning) {
+        primerWarnings[primerWarningKey(idx, field)] = warning;
+      }
+      const orientation = primerOrientationForField(field);
+      const names = primerNamesForOrientation(orientation);
+      const currentValue = String(tube[field] || "").trim();
+      if (currentValue && !names.includes(currentValue)) {
+        primerCustomMode[primerCustomKey(idx, field)] = true;
+      }
+    }
+  });
+  if (!tubeState.length) return;
+  document.getElementById("pcr_storage_suggestions_list").innerHTML = STORAGE_SUGGESTIONS.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("");
+  populatePrimerDatalists();
+  renderPcrTable();
+  renderPcrProtocol();
+  renderPcrFinalProducts();
+}
+
+function preparePcrSave() {
+  const runName = document.getElementById("pcr_run_name").value.trim();
+  if (!runName) {
+    alert("PCR run name is required.");
+    return false;
+  }
+  const payload = {
+    experiment_type: "PCR",
+    pcr_run_name: runName,
+    started_record_on: INITIAL_PAYLOAD.started_record_on || "",
+    num_tubes: tubeState.length,
+    polymerase: document.getElementById("pcr_polymerase").value.trim(),
+    buffer_concentration_x: Number(document.getElementById("buffer_concentration_x").value || 5),
+    thermocycler: thermocyclerPayload(),
+    tubes: tubeState.map((tube) => ({
+      tube: tube.tube,
+      dna_identity: tube.dna_identity || "",
+      forward_primer: tube.forward_primer || "",
+      reverse_primer: tube.reverse_primer || "",
+      note: tube.note || "",
+      length: tube.length || "",
+      concentration: tube.concentration || "",
+      disposition: PCR_PRODUCT_DISPOSITIONS.includes(String(tube.disposition || "").toLowerCase()) ? String(tube.disposition || "").toLowerCase() : "stored",
+      storage_location: tube.storage_location || "",
+      atail_enabled: !!tube.atail_enabled,
+    })),
+  };
+  document.getElementById("pcr_payload_json").value = JSON.stringify(payload);
+  return true;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+loadExistingPcrRecord();
+populatePrimerDatalists();
+applyPcrReadonlyState();
+</script>
+{% endblock %}

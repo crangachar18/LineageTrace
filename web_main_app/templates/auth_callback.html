@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Signing In{% endblock %}
+{% block content %}
+<section class="hero-card login-card">
+  <h1>Signing In</h1>
+  <p class="lead" id="auth_status">Completing Google sign-in.</p>
+  <form id="auth_session_form" method="post" action="/auth/session" hidden>
+    <input type="hidden" name="access_token" id="access_token">
+    <input type="hidden" name="refresh_token" id="refresh_token">
+    <input type="hidden" name="state" id="state">
+  </form>
+  <a class="ghost-button" id="auth_retry" href="/" hidden>Return to Login</a>
+</section>
+
+<script>
+const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+const queryParams = new URLSearchParams(window.location.search);
+const accessToken = hashParams.get("access_token") || queryParams.get("access_token") || "";
+const refreshToken = hashParams.get("refresh_token") || queryParams.get("refresh_token") || "";
+const state = queryParams.get("lt_state") || hashParams.get("lt_state") || "";
+const error = hashParams.get("error_description") || queryParams.get("error_description") || "";
+
+if (accessToken) {
+  document.getElementById("access_token").value = accessToken;
+  document.getElementById("refresh_token").value = refreshToken;
+  document.getElementById("state").value = state;
+  document.getElementById("auth_session_form").submit();
+} else {
+  document.getElementById("auth_status").textContent = error || "Google sign-in did not return a session.";
+  document.getElementById("auth_retry").hidden = false;
+}
+</script>
+{% endblock %}

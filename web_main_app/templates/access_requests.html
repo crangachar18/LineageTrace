@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Access Requests{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Access Requests</h1>
+    <p class="subtle">Approve Google-authenticated users into this LineageTrace database.</p>
+  </div>
+  <form method="get" action="/access-requests" class="inventory-filter-form">
+    <label>
+      <span>Status</span>
+      <select name="status" onchange="this.form.submit()">
+        <option value="pending" {% if status == "pending" %}selected{% endif %}>Pending</option>
+        <option value="approved" {% if status == "approved" %}selected{% endif %}>Approved</option>
+        <option value="denied" {% if status == "denied" %}selected{% endif %}>Denied</option>
+        <option value="all" {% if status == "all" %}selected{% endif %}>All</option>
+      </select>
+    </label>
+  </form>
+</section>
+
+{% if error %}
+<section class="panel error-panel">
+  <strong>Review failed.</strong>
+  <div class="subtle">{{ error }}</div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <div class="table-wrap">
+    <table class="workflow-table access-requests-table">
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Name</th>
+          <th>Requested</th>
+          <th>Note</th>
+          <th>Status</th>
+          <th>Requested At</th>
+          <th>Review</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if access_requests %}
+        {% for item in access_requests %}
+        <tr>
+          <td>{{ item.email }}</td>
+          <td>{{ item.display_name }}</td>
+          <td>{{ item.requested_role }}</td>
+          <td>{{ item.request_note }}</td>
+          <td>{{ item.status }}</td>
+          <td>{{ item.requested_at }}</td>
+          <td class="inventory-actions-cell">
+            {% if item.status == "pending" %}
+            <form method="post" action="/access-requests/review" class="access-review-form">
+              <input type="hidden" name="request_id" value="{{ item.id }}">
+              <input type="text" name="display_name" value="{{ item.display_name }}" aria-label="Display name">
+              <select name="role" aria-label="Approved role">
+                <option value="researcher" {% if item.requested_role == "researcher" %}selected{% endif %}>Researcher</option>
+                <option value="admin" {% if item.requested_role == "admin" %}selected{% endif %}>Admin</option>
+              </select>
+              <button type="submit" name="action" value="approve" class="primary-button compact-group-button">Approve</button>
+              <button type="submit" name="action" value="deny" class="danger-button compact-group-button">Deny</button>
+            </form>
+            {% else %}
+            <span class="subtle">{{ item.reviewed_at }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+          <td colspan="7">
+            <div class="empty-state">No access requests.</div>
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

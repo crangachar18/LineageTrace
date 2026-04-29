@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slideapp.local/schemas/experiment-record.schema.json",
+  "title": "Experiment Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "experiment_id",
+    "owner_user_id",
+    "name",
+    "experiment_date",
+    "status",
+    "groups",
+    "protocol_defaults",
+    "sharing",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "experiment_id": { "type": "string", "minLength": 1 },
+    "owner_user_id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "experiment_date": { "type": "string", "format": "date" },
+    "conditions": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "High-level experiment conditions and notes."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "active", "completed", "archived"]
+    },
+    "wizard_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["last_completed_step", "can_resume", "saved_at"],
+      "properties": {
+        "last_completed_step": {
+          "type": "string",
+          "enum": [
+            "experiment_basics",
+            "group_setup",
+            "protocol_defaults",
+            "antibodies",
+            "edu_dapi_mounting",
+            "assets_and_imaging",
+            "completed"
+          ]
+        },
+        "can_resume": { "type": "boolean" },
+        "saved_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/group" }
+    },
+    "protocol_defaults": { "$ref": "#/$defs/protocolDefaults" },
+    "primary_antibodies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/antibodyUsage" }
+    },
+    "secondary_antibodies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/antibodyUsage" }
+    },
+    "secondary_suggestions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/secondarySuggestion" },
+      "description": "Optional computed recommendations from selected primaries."
+    },
+    "assets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/asset" },
+      "description": "Experiment-level assets (protocol docs, overview images)."
+    },
+    "sharing": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/member" }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "concentration": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["value", "unit"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "minLength": 1 }
+      }
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["group_id", "name", "planned_slide_count", "sort_order"],
+      "properties": {
+        "group_id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "planned_slide_count": { "type": "integer", "minimum": 1 },
+        "sort_order": { "type": "integer", "minimum": 0 },
+        "group_conditions": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Per-group treatment details (drug, dose, timing)."
+        }
+      }
+    },
+    "protocolDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edu_used"],
+      "properties": {
+        "detergent_type": { "type": ["string", "null"] },
+        "detergent_concentration": { "$ref": "#/$defs/concentration" },
+        "serum_type": { "type": ["string", "null"] },
+        "serum_concentration": { "$ref": "#/$defs/concentration" },
+        "blocking_agent": { "type": ["string", "null"] },
+        "block_concentration": { "$ref": "#/$defs/concentration" },
+        "block_duration_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "primary_incubation_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "secondary_block_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "secondary_incubation_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "edu_used": { "type": "boolean" },
+        "edu_conditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["concentration", "incubation_minutes"],
+            "properties": {
+              "concentration": { "$ref": "#/$defs/concentration" },
+              "incubation_minutes": { "type": "integer", "minimum": 0 },
+              "notes": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "dapi_concentration": { "$ref": "#/$defs/concentration" },
+        "dapi_incubation_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "mounting_medium": { "type": ["string", "null"] },
+        "notes": { "type": ["string", "null"] }
+      }
+    },
+    "antibodyUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["antibody_id"],
+      "properties": {
+        "antibody_id": { "type": "string", "minLength": 1 },
+        "target_name": { "type": ["string", "null"] },
+        "host_species": { "type": ["string", "null"] },
+        "dilution": { "$ref": "#/$defs/concentration" },
+        "incubation_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "notes": { "type": ["string", "null"] }
+      }
+    },
+    "secondarySuggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_antibody_id", "suggested_secondary_antibody_id", "reason"],
+      "properties": {
+        "primary_antibody_id": { "type": "string", "minLength": 1 },
+        "suggested_secondary_antibody_id": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asset_id", "asset_type", "uri", "created_by_user_id", "created_at"],
+      "properties": {
+        "asset_id": { "type": "string", "minLength": 1 },
+        "asset_type": {
+          "type": "string",
+          "enum": [
+            "protocol_document",
+            "overview_image",
+            "other"
+          ]
+        },
+        "uri": { "type": "string", "minLength": 1 },
+        "content_hash": { "type": ["string", "null"] },
+        "captured_at": { "type": ["string", "null"], "format": "date-time" },
+        "metadata": { "type": "object", "additionalProperties": true },
+        "created_by_user_id": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user_id", "role", "can_add_notes"],
+      "properties": {
+        "user_id": { "type": "string", "minLength": 1 },
+        "role": {
+          "type": "string",
+          "enum": ["owner", "collaborator", "viewer"]
+        },
+        "can_add_notes": { "type": "boolean" }
+      }
+    }
+  }
+}

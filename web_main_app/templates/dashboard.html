@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<section class="card-grid">
+  <a class="metric-card" href="/records?scope=drafts">
+    <span class="metric-label">Drafts</span>
+    <strong>{{ draft_count }}</strong>
+    <span class="metric-help">unfinished records</span>
+  </a>
+  <a class="metric-card" href="/inventory">
+    <span class="metric-label">Inventory</span>
+    <strong>{{ inventory_count }}</strong>
+    <span class="metric-help">objects</span>
+  </a>
+  <a class="metric-card" href="/records?scope=saved">
+    <span class="metric-label">Records</span>
+    <strong>{{ record_count }}</strong>
+    <span class="metric-help">submitted runs</span>
+  </a>
+</section>
+{% endblock %}

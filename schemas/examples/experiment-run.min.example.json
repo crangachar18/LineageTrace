@@ -1,0 +1,63 @@
+{
+  "run_id": "run_20260219_ab12cd34",
+  "experiment_type": "CLONING",
+  "run_name": "Cloning-2026-02-19 Otx2",
+  "created_by": "researcher",
+  "created_at": "2026-02-19T21:10:00Z",
+  "workflow_stage": "awaiting_colony_pick",
+  "parent_run_ids": [
+    "run_20260217_f882ed68"
+  ],
+  "records": [
+    {
+      "record_type": "clone",
+      "record_id": "clone_ab12cd34",
+      "parent_record_ids": [
+        "amp_91ee20af"
+      ],
+      "source_run_id": "run_20260219_ab12cd34",
+      "source_run_type": "CLONING",
+      "workflow_stage": "awaiting_colony_pick",
+      "created_by": "researcher",
+      "created_at": "2026-02-19T21:10:00Z",
+      "attributes": {
+        "vector_name": "Stagia",
+        "insert_source_type": "PCR amplicon",
+        "insert_names": [
+          "otx2"
+        ],
+        "ligase_name": "Takara",
+        "competent_cells": "DH5alpha",
+        "plate_specs": [
+          {
+            "plate_id": "P1",
+            "vector_name": "Stagia",
+            "insert_name": "otx2",
+            "condition_type": "experiment"
+          },
+          {
+            "plate_id": "P2",
+            "vector_name": "Stagia",
+            "insert_name": "H2O control",
+            "condition_type": "control"
+          }
+        ]
+      }
+    }
+  ],
+  "run_attributes": {
+    "conditions": {
+      "ligation_temp_c": 16.0,
+      "ligation_time_min": 20,
+      "cells_volume_ul": 25.0,
+      "ice_incubation_min": 20,
+      "heat_shock_temp_c": 42.0,
+      "heat_shock_time_s": 30,
+      "recovery_lb_ul": 950.0,
+      "recovery_time_min": 60,
+      "centrifuge_rpm": 4000,
+      "centrifuge_time_min": 4,
+      "plating_pellet_mix_ul": 150.0
+    }
+  }
+}

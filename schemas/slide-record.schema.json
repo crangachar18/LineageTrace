@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slideapp.local/schemas/slide-record.schema.json",
+  "title": "Slide Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "slide_id",
+    "experiment_id",
+    "group_id",
+    "owner_user_id",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "slide_id": { "type": "string", "minLength": 1 },
+    "experiment_id": { "type": "string", "minLength": 1 },
+    "group_id": { "type": "string", "minLength": 1 },
+    "owner_user_id": { "type": "string", "minLength": 1 },
+    "local_label": { "type": ["string", "null"] },
+    "status": {
+      "type": "string",
+      "enum": ["in_storage", "checked_out", "imaged", "archived", "destroyed"]
+    },
+    "specimen_origin": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "organism": { "type": ["string", "null"] },
+        "species_strain": { "type": ["string", "null"] },
+        "donor_id": { "type": ["string", "null"] },
+        "tissue_type": { "type": ["string", "null"] },
+        "anatomical_site": { "type": ["string", "null"] },
+        "collection_date": { "type": ["string", "null"], "format": "date" }
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "detergent_type": { "type": ["string", "null"] },
+        "detergent_concentration": { "$ref": "#/$defs/concentration" },
+        "serum_type": { "type": ["string", "null"] },
+        "serum_concentration": { "$ref": "#/$defs/concentration" },
+        "blocking_agent": { "type": ["string", "null"] },
+        "block_concentration": { "$ref": "#/$defs/concentration" },
+        "block_duration_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "primary_incubation_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "secondary_block_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "secondary_incubation_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "edu_used": { "type": "boolean" },
+        "edu_conditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["concentration", "incubation_minutes"],
+            "properties": {
+              "concentration": { "$ref": "#/$defs/concentration" },
+              "incubation_minutes": { "type": "integer", "minimum": 0 },
+              "notes": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "dapi_concentration": { "$ref": "#/$defs/concentration" },
+        "dapi_incubation_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "mounting_medium": { "type": ["string", "null"] }
+      }
+    },
+    "primary_antibodies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/antibodyUsage" }
+    },
+    "secondary_antibodies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/antibodyUsage" }
+    },
+    "storage_location": { "type": ["string", "null"] },
+    "imaging": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "imaged": { "type": "boolean" },
+        "imaging_site": { "type": ["string", "null"] },
+        "imaging_date": { "type": ["string", "null"], "format": "date-time" },
+        "microscope": { "type": ["string", "null"] },
+        "scanner": { "type": ["string", "null"] },
+        "laser_lines": { "type": "array", "items": { "type": "string" } },
+        "laser_intensities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["channel", "value"],
+            "properties": {
+              "channel": { "type": "string" },
+              "value": { "type": "number" },
+              "unit": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "notes": { "type": ["string", "null"] }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/asset" }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/note" }
+    },
+    "usage_events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/usageEvent" }
+    },
+    "cell_count_data_link": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "concentration": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["value", "unit"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "minLength": 1 }
+      }
+    },
+    "antibodyUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["antibody_id"],
+      "properties": {
+        "antibody_id": { "type": "string", "minLength": 1 },
+        "target_name": { "type": ["string", "null"] },
+        "host_species": { "type": ["string", "null"] },
+        "dilution": { "$ref": "#/$defs/concentration" },
+        "incubation_minutes": { "type": ["integer", "null"], "minimum": 0 },
+        "notes": { "type": ["string", "null"] }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asset_id", "asset_type", "uri", "created_by_user_id", "created_at"],
+      "properties": {
+        "asset_id": { "type": "string", "minLength": 1 },
+        "asset_type": {
+          "type": "string",
+          "enum": [
+            "pre_image_photo",
+            "microscopy_image",
+            "czi_raw",
+            "cell_count_data",
+            "presentation_reference",
+            "other"
+          ]
+        },
+        "uri": { "type": "string", "minLength": 1 },
+        "content_hash": { "type": ["string", "null"] },
+        "captured_at": { "type": ["string", "null"], "format": "date-time" },
+        "metadata": { "type": "object", "additionalProperties": true },
+        "created_by_user_id": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["note_id", "author_user_id", "note_type", "body", "created_at"],
+      "properties": {
+        "note_id": { "type": "string", "minLength": 1 },
+        "author_user_id": { "type": "string", "minLength": 1 },
+        "note_type": {
+          "type": "string",
+          "enum": ["general", "imaging", "storage", "analysis", "presentation"]
+        },
+        "body": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "usageEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["usage_event_id", "event_type", "created_by_user_id", "created_at"],
+      "properties": {
+        "usage_event_id": { "type": "string", "minLength": 1 },
+        "event_type": {
+          "type": "string",
+          "enum": ["presentation", "cell_counting", "figure_export", "publication", "other"]
+        },
+        "location_or_uri": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "event_date": { "type": ["string", "null"], "format": "date-time" },
+        "created_by_user_id": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

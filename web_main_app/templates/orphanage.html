@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Records{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Records</h1>
+  <p class="lead">Open drafts or submitted records. Submitted records open read-only until you choose to modify them.</p>
+  {% if saved %}
+  <p class="success">Saved record {{ saved }}{% if file %} and wrote {{ file }}{% endif %}.</p>
+  {% endif %}
+</section>
+
+{% if record_owner_options and record_owner_options|length > 1 %}
+<section class="panel record-view-panel">
+  <div>
+    <h2>Record Workspace</h2>
+    <p class="subtle">Choose whose records appear below.</p>
+  </div>
+  <form method="post" action="/record-view" class="record-view-form">
+    <input type="hidden" name="next" value="/records?scope={{ scope }}">
+    <div class="record-view-options">
+      {% for option in record_owner_options %}
+      <label class="record-view-option">
+        <input
+          type="checkbox"
+          name="record_owners"
+          value="{{ option.username }}"
+          {% if option.username in selected_record_owners %}checked{% endif %}
+        >
+        <span>{{ option.label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="inline-form record-view-actions">
+      <button class="ghost-button compact-group-button" type="submit" name="include_all" value="1">All</button>
+      <button class="primary-button compact-group-button" type="submit">Apply</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+<section class="inventory-pill-row record-scope-row">
+  <a class="ghost-button inventory-pill {% if scope == 'saved' %}active{% endif %}" href="/records?scope=saved">Saved Records</a>
+  <a class="ghost-button inventory-pill {% if scope == 'drafts' %}active{% endif %}" href="/records?scope=drafts">Drafts</a>
+  <a class="ghost-button inventory-pill {% if scope == 'all' %}active{% endif %}" href="/records?scope=all">All Records</a>
+</section>
+
+<section class="panel">
+  {% if runs %}
+  <div class="table-wrap">
+    <table class="workflow-table records-table">
+      <thead>
+        <tr>
+          <th>Researcher Name</th>
+          <th>Experiment Type</th>
+          <th>Experiment Name</th>
+          <th>Started Record On</th>
+          <th>Last Closed</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in runs %}
+        <tr class="record-row" onclick="window.location.href='/records/open/{{ run.run_id }}'">
+          <td>{{ run.researcher_name }}</td>
+          <td>{{ run.experiment_type }}</td>
+          <td>{{ run.run_name }}</td>
+          <td>{{ run.started_record_on }}</td>
+          <td>{{ run.last_closed }}</td>
+          <td>{{ run.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">No records were found for this view.</div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Research Team{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Research Team</h1>
+    <p class="subtle">Approve researcher supervisor requests and review the records workspace you can see.</p>
+  </div>
+  <form method="get" action="/team" class="inventory-filter-form">
+    <label>
+      <span>Status</span>
+      <select name="status" onchange="this.form.submit()">
+        <option value="pending" {% if status == "pending" %}selected{% endif %}>Pending</option>
+        <option value="approved" {% if status == "approved" %}selected{% endif %}>Approved</option>
+        <option value="denied" {% if status == "denied" %}selected{% endif %}>Denied</option>
+        <option value="all" {% if status == "all" %}selected{% endif %}>All</option>
+      </select>
+    </label>
+  </form>
+</section>
+
+{% if error %}
+<section class="panel error-panel">
+  <strong>Review failed.</strong>
+  <div class="subtle">{{ error }}</div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Supervisor Requests</h2>
+  <div class="table-wrap">
+    <table class="workflow-table access-requests-table">
+      <thead>
+        <tr>
+          <th>Researcher</th>
+          <th>Email</th>
+          <th>Admin</th>
+          <th>Status</th>
+          <th>Requested At</th>
+          <th>Review</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if supervisor_requests %}
+        {% for item in supervisor_requests %}
+        <tr>
+          <td>{{ item.researcher_label }}</td>
+          <td>{{ item.researcher_email }}</td>
+          <td>{{ item.admin_label or item.admin_email }}</td>
+          <td>{{ item.status }}</td>
+          <td>{{ item.requested_at }}</td>
+          <td class="inventory-actions-cell">
+            {% if item.status == "pending" %}
+            <form method="post" action="/team/supervisor-requests/review" class="access-review-form">
+              <input type="hidden" name="request_id" value="{{ item.id }}">
+              <input type="text" name="review_note" value="" placeholder="Note" aria-label="Review note">
+              <button type="submit" name="action" value="approve" class="primary-button compact-group-button">Approve</button>
+              <button type="submit" name="action" value="deny" class="danger-button compact-group-button">Deny</button>
+            </form>
+            {% else %}
+            <span class="subtle">{{ item.reviewed_at }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+          <td colspan="6">
+            <div class="empty-state">No supervisor requests.</div>
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Visible Record Owners</h2>
+  {% if record_owner_options and record_owner_options|length > 1 %}
+  <div class="record-view-options">
+    {% for option in record_owner_options %}
+    <span class="record-view-option">{{ option.label }}</span>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">No approved researcher records are linked to this account yet.</div>
+  {% endif %}
+</section>
+{% endblock %}

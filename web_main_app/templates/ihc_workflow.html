@@ -1,0 +1,1125 @@
+{% extends "base.html" %}
+{% block title %}Immunohistochemistry (IHC){% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Immunohistochemistry (IHC)</h1>
+  <p class="lead">Input parameters of a tissue staining experiment. Can be used for planning or recording a previous experiment.</p>
+  {% if initial_run_id %}
+  <div class="inline-form record-toolbar">
+    <span class="pill">{{ initial_status }}</span>
+    {% if not initial_editable %}
+    <button class="ghost-button" type="button" id="modify_record_button" onclick="enableRecordEditing()">Modify Record</button>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel stack">
+  <div class="two-column">
+    <label>
+      <span>IHC Experiment Name</span>
+      <input id="ihc_run_name" type="text" placeholder="e.g., IHC-2026-04-22 Sample Stain">
+    </label>
+    <label>
+      <span>Date of Experiment</span>
+      <input id="experiment_date" type="date">
+    </label>
+    <label>
+      <span>Serum Type</span>
+      <select id="serum_type">
+        <option>Goat</option>
+        <option>Donkey</option>
+        <option>Horse</option>
+        <option>Sheep</option>
+      </select>
+    </label>
+    <label>
+      <span>Serum Concentration Percent</span>
+      <input id="serum_concentration_percent" type="number" step="0.1" value="5">
+    </label>
+    <label>
+      <span>Detergent Type</span>
+      <select id="detergent_type">
+        <option>Triton X-100</option>
+        <option>PBST</option>
+        <option>Tween-20</option>
+        <option>None</option>
+      </select>
+    </label>
+    <label>
+      <span>Detergent Concentration Percent</span>
+      <input id="detergent_concentration_percent" type="number" step="0.1" value="0.1">
+    </label>
+    <label>
+      <span>Primary Block Length Min</span>
+      <input id="primary_block_length_min" type="number" value="60">
+    </label>
+    <label>
+      <span>EdU Enabled</span>
+      <select id="edu_enabled">
+        <option value="false" selected>No</option>
+        <option value="true">Yes</option>
+      </select>
+    </label>
+    <label>
+      <span>Antibody Mix Volume (uL)</span>
+      <input id="antibody_mix_volume_ul" type="number" step="0.1" value="300">
+    </label>
+    <label>
+      <span>Primary Incubation Method</span>
+      <select id="primary_incubation_method">
+        <option>Overnight at 4C</option>
+        <option>1 hour at room temperature</option>
+      </select>
+    </label>
+    <label>
+      <span>Secondary Volume (uL)</span>
+      <input id="secondary_volume_ul" type="number" step="0.1" value="500">
+    </label>
+    <label>
+      <span>Secondary Incubation Method</span>
+      <select id="secondary_incubation_method">
+        <option>Overnight at 4C</option>
+        <option>1 hour at room temperature</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="panel subtle-panel">
+    <div class="panel-header">
+      <div>
+        <h2>Treatment Groups</h2>
+        <p class="subtle">Set group count, names, and slide counts.</p>
+      </div>
+      <div class="inline-form">
+        <label class="compact-field">
+          <span>Number of Groups</span>
+          <input id="group_count" type="number" min="1" max="12" value="2">
+        </label>
+        <button class="ghost-button" type="button" onclick="renderGroups()">Apply</button>
+      </div>
+    </div>
+    <div id="groups_editor" class="stack"></div>
+  </div>
+
+  <div class="inline-form">
+    <button class="primary-button" type="button" onclick="buildWorkflow()">Generate IHC Workflow</button>
+    <span id="workflow_status" class="subtle"></span>
+  </div>
+</section>
+
+<section id="workflow_sections" class="stack" hidden>
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Primary Antibody Assignment</h2>
+        <p class="subtle">Assign primary antibodies per slide. To copy one primary set across multiple slides, check the source slide first, then the matching destination slides, and click Group at the top of the column.</p>
+      </div>
+      <div class="inline-form">
+        <button class="ghost-button" type="button" onclick="assignPrimaryMasterMixes()">Assign Master Mixes</button>
+      </div>
+    </div>
+    <div id="primary_validation" class="error"></div>
+    <div class="table-wrap">
+      <table class="workflow-table" id="primary_table"></table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Secondary Antibody Assignment</h2>
+        <p class="subtle">Assign secondary antibodies by fluorophore channel with compatibility checks. Auto Compatible is intended for researchers using the app for planning.</p>
+      </div>
+      <div class="inline-form">
+        <button class="ghost-button" type="button" onclick="autoFillSecondaries()">Auto Compatible</button>
+        <button class="ghost-button" type="button" onclick="assignSecondaryMasterMixes()">Set Secondary Master Mixes</button>
+      </div>
+    </div>
+    <div id="secondary_validation" class="error"></div>
+    <div class="table-wrap">
+      <table class="workflow-table" id="secondary_table"></table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Master Mix Protocols</h2>
+        <p class="subtle">Review and download concentration-aware primary and secondary master mix instructions.</p>
+      </div>
+      <div class="inline-form">
+        <button class="ghost-button" type="button" onclick="renderIhcProtocols()">Refresh Protocols</button>
+        <button class="ghost-button" type="button" onclick="downloadIhcProtocols()">Download Protocols</button>
+      </div>
+    </div>
+    <pre id="ihc_protocol_preview"></pre>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Final Slide Book</h2>
+        <p class="subtle">Review slide identities, storage locations, and planned use before saving.</p>
+      </div>
+      <button class="ghost-button" type="button" onclick="buildFinalSlideBook()">Refresh Slide Book</button>
+    </div>
+    <div class="table-wrap">
+      <table class="workflow-table" id="final_table"></table>
+    </div>
+    <form method="post" action="/ihc/save" class="stack" onsubmit="return prepareIhcSave()">
+      <input type="hidden" name="run_id" id="ihc_run_id" value="{{ initial_run_id }}">
+      <input type="hidden" name="save_mode" id="ihc_save_mode" value="submitted">
+      <input type="hidden" name="payload_json" id="payload_json">
+      <div class="inline-form">
+        <button class="ghost-button" type="submit" onclick="setIhcSaveMode('draft')">Save Draft</button>
+        <button class="primary-button" type="submit" onclick="setIhcSaveMode('submitted')">Submit Record</button>
+      </div>
+    </form>
+  </section>
+</section>
+
+<datalist id="storage_suggestions_list"></datalist>
+
+<script>
+const PRIMARIES = {{ primaries_json | safe }};
+const SECONDARIES = {{ secondaries_json | safe }};
+const STORAGE_SUGGESTIONS = {{ storage_suggestions_json | safe }};
+const INITIAL_PAYLOAD = {{ initial_payload_json | safe }};
+const SLIDE_DISPOSITIONS = ["stored", "discarded"];
+let recordEditable = {{ "true" if initial_editable else "false" }};
+
+let slideState = [];
+let channels = ["A488", "Cy3", "A647"];
+let primaryGroupSelection = [];
+let secondaryGroupSelection = [];
+
+function normalizeFluorophore(value) {
+  const token = String(value || "").trim().toUpperCase().replaceAll("-", "").replaceAll(" ", "");
+  if (token === "CY3") return "CY3";
+  if (["A488", "AF488", "ALEXA488"].includes(token)) return "A488";
+  if (["A647", "AF647", "ALEXA647"].includes(token)) return "A647";
+  return token;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function renderGroups() {
+  const container = document.getElementById("groups_editor");
+  const count = Math.max(1, Math.min(12, parseInt(document.getElementById("group_count").value || "1", 10)));
+  container.innerHTML = "";
+  for (let i = 0; i < count; i += 1) {
+    const row = document.createElement("div");
+    row.className = "group-row";
+    row.innerHTML = `
+      <label class="compact-field">
+        <span>Group ${i + 1} Name</span>
+        <input type="text" id="group_name_${i}" value="${i === 0 ? "Control" : `Group ${i + 1}`}">
+      </label>
+      <label class="compact-field">
+        <span>Slides</span>
+        <input type="number" id="group_slides_${i}" min="1" max="24" value="2">
+      </label>
+    `;
+    container.appendChild(row);
+  }
+}
+
+function selectedSerum() {
+  return document.getElementById("serum_type").value.trim().toLowerCase();
+}
+
+function normalizeSubtype(value) {
+  return String(value || "").trim().toLowerCase().replaceAll(" ", "");
+}
+
+function isValidPrimarySelection(primaryObjs, serumType) {
+  const serum = serumType.trim().toLowerCase();
+  const usedNonMouseAnimals = new Set();
+  const mouseSubtypes = new Set();
+  let mouseCount = 0;
+
+  for (const ab of primaryObjs) {
+    const animal = String(ab.animal || "").trim().toLowerCase();
+    if (!animal) continue;
+    if (animal === serum) return false;
+    if (animal === "mouse") {
+      mouseCount += 1;
+      const subtype = normalizeSubtype(ab.igg_subtype);
+      if (mouseCount > 2) return false;
+      if (mouseCount === 2 && !subtype) return false;
+      if (subtype && mouseSubtypes.has(subtype)) return false;
+      if (subtype) mouseSubtypes.add(subtype);
+      continue;
+    }
+    if (usedNonMouseAnimals.has(animal)) return false;
+    usedNonMouseAnimals.add(animal);
+  }
+
+  if (mouseCount === 2 && mouseSubtypes.size !== 2) return false;
+  return true;
+}
+
+function primaryOptions(selectedNames = []) {
+  return `
+    <option value="">None</option>
+    ${PRIMARIES.map((primary) => {
+      const selected = selectedNames.includes(primary.name) ? "selected" : "";
+      return `<option value="${escapeHtml(primary.name)}" ${selected}>${escapeHtml(primary.name)}</option>`;
+    }).join("")}
+  `;
+}
+
+function primaryDefaultDilution(name) {
+  return PRIMARIES.find((primary) => primary.name === name)?.concentration_text || "";
+}
+
+function secondaryDefaultDilution(name) {
+  return SECONDARIES.find((secondary) => secondary.name === name)?.concentration_text || "";
+}
+
+function secondaryOptions(channel, selectedName = "") {
+  const normalizedChannel = normalizeFluorophore(channel);
+  return `
+    <option value="">None</option>
+    ${SECONDARIES.filter((secondary) => normalizeFluorophore(secondary.fluorophore) === normalizedChannel).map((secondary) => {
+      const selected = secondary.name === selectedName ? "selected" : "";
+      return `<option value="${escapeHtml(secondary.name)}" ${selected}>${escapeHtml(secondary.name)}</option>`;
+    }).join("")}
+  `;
+}
+
+function buildWorkflow() {
+  const groupCount = Math.max(1, Math.min(12, parseInt(document.getElementById("group_count").value || "1", 10)));
+  const eduEnabled = document.getElementById("edu_enabled").value === "true";
+  channels = eduEnabled ? ["A488", "Cy3"] : ["A488", "Cy3", "A647"];
+  slideState = [];
+  primaryGroupSelection = [];
+  secondaryGroupSelection = [];
+
+  for (let i = 0; i < groupCount; i += 1) {
+    const groupName = (document.getElementById(`group_name_${i}`)?.value || `Group ${i + 1}`).trim() || `Group ${i + 1}`;
+    const slideCount = Math.max(1, parseInt(document.getElementById(`group_slides_${i}`)?.value || "1", 10));
+    for (let s = 0; s < slideCount; s += 1) {
+      slideState.push({
+        groupIndex: i,
+        groupName,
+        slideIndex: s,
+        slideId: `G${i + 1}-S${s + 1}`,
+        primaryNames: Array(eduEnabled ? 2 : 3).fill(""),
+        primaryDilutions: Array(eduEnabled ? 2 : 3).fill(""),
+        primaryMM: "",
+        secondaryByChannel: Object.fromEntries(channels.map((channel) => [channel, ""])),
+        secondaryDilutions: Object.fromEntries(channels.map((channel) => [channel, ""])),
+        secondaryMM: "",
+        disposition: "stored",
+        imaging: "pending",
+        storageLocation: "",
+        plannedUse: "",
+      });
+    }
+  }
+
+  document.getElementById("workflow_sections").hidden = false;
+  document.getElementById("workflow_status").textContent = `${slideState.length} slides across ${groupCount} groups`;
+  const datalist = document.getElementById("storage_suggestions_list");
+  datalist.innerHTML = STORAGE_SUGGESTIONS.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("");
+  renderPrimaryTable();
+  renderSecondaryTable();
+  buildFinalSlideBook();
+}
+
+function getPrimaryObjects(slide) {
+  return slide.primaryNames
+    .filter(Boolean)
+    .map((name) => PRIMARIES.find((primary) => primary.name === name))
+    .filter(Boolean);
+}
+
+function validatePrimaryRows() {
+  const serum = selectedSerum();
+  let error = "";
+  for (const slide of slideState) {
+    const primaryObjs = getPrimaryObjects(slide);
+    if (!isValidPrimarySelection(primaryObjs, serum)) {
+      error = `Invalid primary set on ${slide.slideId}: duplicate host animals are blocked, and serum-matching hosts are not allowed.`;
+      break;
+    }
+  }
+  document.getElementById("primary_validation").textContent = error;
+  return !error;
+}
+
+function renderPrimaryTable() {
+  const table = document.getElementById("primary_table");
+  const antibodyColumns = slideState[0]?.primaryNames.length || 3;
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Slide ID</th>
+        <th>Group</th>
+        ${Array.from({ length: antibodyColumns }, (_, index) => `<th>AB${index + 1}</th>`).join("")}
+        <th>MM</th>
+        <th><button class="ghost-button compact-group-button" type="button" onclick="applyPrimaryGroupSelection()">Group</button></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${slideState.map((slide, slideIdx) => `
+        <tr>
+          <td>${escapeHtml(slide.slideId)}</td>
+          <td>${escapeHtml(slide.groupName)}</td>
+          ${slide.primaryNames.map((selected, primaryIdx) => `
+            <td>
+              <select onchange="updatePrimary(${slideIdx}, ${primaryIdx}, this.value)">
+                ${primaryOptions(selected ? [selected] : [])}
+              </select>
+              <input
+                class="inventory-inline-input"
+                placeholder="dilution"
+                value="${escapeHtml(slide.primaryDilutions[primaryIdx] || "")}"
+                onchange="updatePrimaryDilution(${slideIdx}, ${primaryIdx}, this.value)"
+              >
+            </td>
+          `).join("")}
+          <td>${escapeHtml(slide.primaryMM || "")}</td>
+          <td class="group-select-cell">
+            <input
+              type="checkbox"
+              ${primaryGroupSelection.includes(slideIdx) ? "checked" : ""}
+              onchange="togglePrimaryGroupSelection(${slideIdx}, this.checked)"
+            >
+          </td>
+        </tr>
+      `).join("")}
+    </tbody>
+  `;
+  validatePrimaryRows();
+}
+
+function updatePrimary(slideIdx, primaryIdx, value) {
+  slideState[slideIdx].primaryNames[primaryIdx] = value;
+  if (value && !slideState[slideIdx].primaryDilutions[primaryIdx]) {
+    slideState[slideIdx].primaryDilutions[primaryIdx] = primaryDefaultDilution(value);
+  }
+  if (!value) {
+    slideState[slideIdx].primaryDilutions[primaryIdx] = "";
+  }
+  slideState[slideIdx].primaryMM = "";
+  slideState[slideIdx].secondaryMM = "";
+  if (!validatePrimaryRows()) {
+    renderPrimaryTable();
+  } else {
+    renderSecondaryTable();
+    buildFinalSlideBook();
+  }
+}
+
+function updatePrimaryDilution(slideIdx, primaryIdx, value) {
+  slideState[slideIdx].primaryDilutions[primaryIdx] = value;
+  renderIhcProtocols();
+}
+
+function togglePrimaryGroupSelection(slideIdx, checked) {
+  if (checked) {
+    if (!primaryGroupSelection.includes(slideIdx)) primaryGroupSelection.push(slideIdx);
+  } else {
+    primaryGroupSelection = primaryGroupSelection.filter((idx) => idx !== slideIdx);
+  }
+}
+
+function applyPrimaryGroupSelection() {
+  if (primaryGroupSelection.length < 2) return;
+  const sourceIdx = primaryGroupSelection[0];
+  const source = slideState[sourceIdx];
+  if (!source) return;
+  for (const slideIdx of primaryGroupSelection.slice(1)) {
+    slideState[slideIdx].primaryNames = source.primaryNames.slice();
+    slideState[slideIdx].primaryDilutions = source.primaryDilutions.slice();
+    slideState[slideIdx].primaryMM = "";
+    slideState[slideIdx].secondaryMM = "";
+  }
+  primaryGroupSelection = [];
+  assignPrimaryMasterMixes();
+  renderPrimaryTable();
+  renderSecondaryTable();
+  buildFinalSlideBook();
+}
+
+function assignPrimaryMasterMixes() {
+  const mmMap = new Map();
+  let nextIdx = 1;
+  for (const slide of slideState) {
+    const key = slide.primaryNames.filter(Boolean).sort().join("|");
+    if (!key) {
+      slide.primaryMM = "";
+      continue;
+    }
+    if (!mmMap.has(key)) {
+      mmMap.set(key, `MM${nextIdx}`);
+      nextIdx += 1;
+    }
+    slide.primaryMM = mmMap.get(key);
+  }
+  renderPrimaryTable();
+  buildFinalSlideBook();
+}
+
+function primaryRequirements(primaryObjs) {
+  const hosts = new Set();
+  const mouseSubtypes = new Set();
+  const nonMouseTargets = new Set();
+  let mouseCount = 0;
+  for (const primary of primaryObjs) {
+    const host = String(primary.animal || "").trim().toLowerCase();
+    if (!host) continue;
+    hosts.add(host);
+    if (host === "mouse") {
+      mouseCount += 1;
+      const subtype = normalizeSubtype(primary.igg_subtype);
+      if (subtype) mouseSubtypes.add(subtype);
+    } else {
+      nonMouseTargets.add(host);
+    }
+  }
+  return { hosts, mouseSubtypes, nonMouseTargets, mouseCount };
+}
+
+function slideSecondaryTargets(primaryObjs) {
+  const req = primaryRequirements(primaryObjs);
+  const targets = [];
+  Array.from(req.nonMouseTargets).sort().forEach((host) => {
+    targets.push({
+      target: host,
+      subtype: "",
+      key: host,
+    });
+  });
+  if (primaryObjs.some((primary) => String(primary.animal || "").toLowerCase() === "mouse")) {
+    if (req.mouseSubtypes.size > 0) {
+      Array.from(req.mouseSubtypes).sort().forEach((subtype) => {
+        targets.push({
+          target: "mouse",
+          subtype,
+          key: `mouse:${subtype}`,
+        });
+      });
+    } else {
+      targets.push({
+        target: "mouse",
+        subtype: "",
+        key: "mouse:any",
+      });
+    }
+  }
+  return targets;
+}
+
+function candidateChannelsForTarget(target, subtype) {
+  const serum = selectedSerum();
+  return channels.filter((channel) => SECONDARIES.some((secondary) => {
+    if (normalizeFluorophore(secondary.fluorophore) !== normalizeFluorophore(channel)) return false;
+    if (serum && secondary.raised_in !== serum) return false;
+    if (secondary.anti !== target) return false;
+    if (target === "mouse" && subtype && secondary.mouse_subtype !== subtype) return false;
+    return true;
+  }));
+}
+
+function buildGlobalSecondaryChannelPlan() {
+  const targetStats = new Map();
+  const conflicts = new Map();
+
+  for (const slide of slideState) {
+    const targets = slideSecondaryTargets(getPrimaryObjects(slide));
+    for (const item of targets) {
+      if (!targetStats.has(item.key)) {
+        targetStats.set(item.key, {
+          ...item,
+          count: 0,
+          candidateChannels: candidateChannelsForTarget(item.target, item.subtype),
+        });
+      }
+      targetStats.get(item.key).count += 1;
+      if (!conflicts.has(item.key)) conflicts.set(item.key, new Set());
+    }
+    for (let i = 0; i < targets.length; i += 1) {
+      for (let j = i + 1; j < targets.length; j += 1) {
+        const left = targets[i].key;
+        const right = targets[j].key;
+        if (!conflicts.has(left)) conflicts.set(left, new Set());
+        if (!conflicts.has(right)) conflicts.set(right, new Set());
+        conflicts.get(left).add(right);
+        conflicts.get(right).add(left);
+      }
+    }
+  }
+
+  const orderedKeys = Array.from(targetStats.keys()).sort((a, b) => {
+    const aInfo = targetStats.get(a);
+    const bInfo = targetStats.get(b);
+    const aConflicts = conflicts.get(a)?.size || 0;
+    const bConflicts = conflicts.get(b)?.size || 0;
+    if (bConflicts !== aConflicts) return bConflicts - aConflicts;
+    if (bInfo.count !== aInfo.count) return bInfo.count - aInfo.count;
+    return a.localeCompare(b);
+  });
+
+  const channelWeight = (channel) => channels.length - channels.indexOf(channel);
+  let bestScore = -Infinity;
+  let bestPlan = {};
+
+  function search(index, currentPlan, currentScore) {
+    if (index >= orderedKeys.length) {
+      if (currentScore > bestScore) {
+        bestScore = currentScore;
+        bestPlan = { ...currentPlan };
+      }
+      return;
+    }
+
+    const key = orderedKeys[index];
+    const info = targetStats.get(key);
+    const candidates = info.candidateChannels.slice().sort((a, b) => channelWeight(b) - channelWeight(a));
+    if (!candidates.length) {
+      search(index + 1, currentPlan, currentScore);
+      return;
+    }
+
+    for (const channel of candidates) {
+      const hasConflict = Array.from(conflicts.get(key) || []).some((otherKey) => currentPlan[otherKey] === channel);
+      if (hasConflict) continue;
+      currentPlan[key] = channel;
+      search(index + 1, currentPlan, currentScore + info.count * channelWeight(channel));
+      delete currentPlan[key];
+    }
+  }
+
+  search(0, {}, 0);
+  return bestPlan;
+}
+
+function candidateSecondaryForTarget(channel, target, subtype, selected, primaryObjs) {
+  const serum = selectedSerum();
+  return SECONDARIES.find((secondary) => {
+    if (normalizeFluorophore(secondary.fluorophore) !== normalizeFluorophore(channel)) return false;
+    if (serum && secondary.raised_in !== serum) return false;
+    if (secondary.anti !== target) return false;
+    if (target === "mouse" && subtype && secondary.mouse_subtype !== subtype) return false;
+    return secondaryIsCompatible(secondary, selected, primaryObjs);
+  });
+}
+
+function targetKeyForSecondary(secondary) {
+  if (secondary.anti === "mouse") {
+    return `mouse:${secondary.mouse_subtype || "any"}`;
+  }
+  return secondary.anti;
+}
+
+function secondaryIsCompatible(secondary, selectedSecondaries, primaryObjs) {
+  const req = primaryRequirements(primaryObjs);
+  const serum = selectedSerum();
+  if (serum && secondary.raised_in !== serum) return false;
+  if (req.hosts.has(secondary.raised_in)) return false;
+  if (secondary.anti === "mouse") {
+    if (!primaryObjs.some((primary) => String(primary.animal || "").toLowerCase() === "mouse")) return false;
+    if (req.mouseSubtypes.size > 0) {
+      if (!secondary.mouse_subtype || !req.mouseSubtypes.has(secondary.mouse_subtype)) return false;
+    } else {
+      if (selectedSecondaries.some((item) => item.anti === "mouse")) return false;
+    }
+  } else if (!req.nonMouseTargets.has(secondary.anti)) {
+    return false;
+  }
+  const usedTargets = new Set(selectedSecondaries.map((item) => {
+    if (item.anti === "mouse" && req.mouseSubtypes.size === 0) return "mouse:any";
+    return targetKeyForSecondary(item);
+  }));
+  const currentTargetKey = secondary.anti === "mouse" && req.mouseSubtypes.size === 0
+    ? "mouse:any"
+    : targetKeyForSecondary(secondary);
+  if (usedTargets.has(currentTargetKey)) return false;
+  const usedFluors = new Set(selectedSecondaries.map((item) => normalizeFluorophore(item.fluorophore)));
+  if (usedFluors.has(normalizeFluorophore(secondary.fluorophore))) return false;
+  return true;
+}
+
+function validateSecondaryRows() {
+  let error = "";
+  for (const slide of slideState) {
+    const primaryObjs = getPrimaryObjects(slide);
+    const selected = [];
+    for (const channel of channels) {
+      const name = slide.secondaryByChannel[channel];
+      if (!name) continue;
+      const secondary = SECONDARIES.find((item) => item.name === name);
+      if (!secondary) continue;
+      if (!secondaryIsCompatible(secondary, selected, primaryObjs)) {
+        error = `Invalid secondary set on ${slide.slideId}: host incompatibility or duplicate anti-target detected.`;
+        break;
+      }
+      selected.push(secondary);
+    }
+    if (error) break;
+  }
+  document.getElementById("secondary_validation").textContent = error;
+  return !error;
+}
+
+function renderSecondaryTable() {
+  const table = document.getElementById("secondary_table");
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Slide ID</th>
+        <th>Primary Set</th>
+        ${channels.map((channel) => `<th>${channel}</th>`).join("")}
+        <th>SMM</th>
+        <th><button class="ghost-button compact-group-button" type="button" onclick="applySecondaryGroupSelection()">Group</button></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${slideState.map((slide, slideIdx) => `
+        <tr>
+          <td>${escapeHtml(slide.slideId)}</td>
+          <td>${escapeHtml(slide.primaryNames.filter(Boolean).join(", ") || "-")}</td>
+          ${channels.map((channel) => `
+            <td>
+              <select onchange="updateSecondary(${slideIdx}, '${channel}', this.value)">
+                ${secondaryOptions(channel, slide.secondaryByChannel[channel])}
+              </select>
+              <input
+                class="inventory-inline-input"
+                placeholder="dilution"
+                value="${escapeHtml(slide.secondaryDilutions[channel] || "")}"
+                onchange="updateSecondaryDilution(${slideIdx}, '${channel}', this.value)"
+              >
+            </td>
+          `).join("")}
+          <td>${escapeHtml(slide.secondaryMM || "")}</td>
+          <td class="group-select-cell">
+            <input
+              type="checkbox"
+              ${secondaryGroupSelection.includes(slideIdx) ? "checked" : ""}
+              onchange="toggleSecondaryGroupSelection(${slideIdx}, this.checked)"
+            >
+          </td>
+        </tr>
+      `).join("")}
+    </tbody>
+  `;
+  validateSecondaryRows();
+}
+
+function updateSecondary(slideIdx, channel, value) {
+  slideState[slideIdx].secondaryByChannel[channel] = value;
+  if (value && !slideState[slideIdx].secondaryDilutions[channel]) {
+    slideState[slideIdx].secondaryDilutions[channel] = secondaryDefaultDilution(value);
+  }
+  if (!value) {
+    slideState[slideIdx].secondaryDilutions[channel] = "";
+  }
+  slideState[slideIdx].secondaryMM = "";
+  validateSecondaryRows();
+  buildFinalSlideBook();
+}
+
+function updateSecondaryDilution(slideIdx, channel, value) {
+  slideState[slideIdx].secondaryDilutions[channel] = value;
+  renderIhcProtocols();
+}
+
+function autoFillSecondaries() {
+  const globalPlan = buildGlobalSecondaryChannelPlan();
+  for (const slide of slideState) {
+    const primaryObjs = getPrimaryObjects(slide);
+    const targets = slideSecondaryTargets(primaryObjs).sort((a, b) => {
+      const aChannel = globalPlan[a.key] || "";
+      const bChannel = globalPlan[b.key] || "";
+      const aIndex = aChannel ? channels.indexOf(aChannel) : 999;
+      const bIndex = bChannel ? channels.indexOf(bChannel) : 999;
+      if (aIndex !== bIndex) return aIndex - bIndex;
+      return a.key.localeCompare(b.key);
+    });
+    const selected = [];
+    for (const channel of channels) {
+      slide.secondaryByChannel[channel] = "";
+    }
+
+    for (const item of targets) {
+      const preferredChannel = globalPlan[item.key];
+      const orderedChannels = [
+        ...(preferredChannel ? [preferredChannel] : []),
+        ...channels.filter((channel) => channel !== preferredChannel),
+      ];
+      for (const channel of orderedChannels) {
+        if (slide.secondaryByChannel[channel]) continue;
+        const candidate = candidateSecondaryForTarget(channel, item.target, item.subtype, selected, primaryObjs);
+        if (!candidate) continue;
+        slide.secondaryByChannel[channel] = candidate.name;
+        slide.secondaryDilutions[channel] = slide.secondaryDilutions[channel] || secondaryDefaultDilution(candidate.name);
+        selected.push(candidate);
+        break;
+      }
+    }
+  }
+  renderSecondaryTable();
+  buildFinalSlideBook();
+}
+
+function toggleSecondaryGroupSelection(slideIdx, checked) {
+  if (checked) {
+    if (!secondaryGroupSelection.includes(slideIdx)) secondaryGroupSelection.push(slideIdx);
+  } else {
+    secondaryGroupSelection = secondaryGroupSelection.filter((idx) => idx !== slideIdx);
+  }
+}
+
+function applySecondaryGroupSelection() {
+  if (secondaryGroupSelection.length < 2) return;
+  const sourceIdx = secondaryGroupSelection[0];
+  const source = slideState[sourceIdx];
+  if (!source) return;
+  for (const slideIdx of secondaryGroupSelection.slice(1)) {
+    slideState[slideIdx].secondaryByChannel = { ...source.secondaryByChannel };
+    slideState[slideIdx].secondaryDilutions = { ...source.secondaryDilutions };
+    slideState[slideIdx].secondaryMM = "";
+  }
+  secondaryGroupSelection = [];
+  assignSecondaryMasterMixes();
+  renderSecondaryTable();
+  buildFinalSlideBook();
+}
+
+function assignSecondaryMasterMixes() {
+  const smmMap = new Map();
+  let nextIdx = 1;
+  for (const slide of slideState) {
+    const key = channels
+      .map((channel) => `${channel}:${slide.secondaryByChannel[channel] || ""}`)
+      .filter((token) => !token.endsWith(":"))
+      .join("|");
+    if (!key) {
+      slide.secondaryMM = "";
+      continue;
+    }
+    if (!smmMap.has(key)) {
+      smmMap.set(key, `SMM${nextIdx}`);
+      nextIdx += 1;
+    }
+    slide.secondaryMM = smmMap.get(key);
+  }
+  renderSecondaryTable();
+  buildFinalSlideBook();
+}
+
+function buildFinalSlideBook() {
+  const table = document.getElementById("final_table");
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Slide ID</th>
+        <th>Group Name</th>
+        <th>Primary Set</th>
+        <th>Primary MM</th>
+        <th>Secondary Set</th>
+        <th>Secondary MM</th>
+        <th>Disposition</th>
+        <th>Imaging</th>
+        <th>Storage Location</th>
+        <th>Planned Use</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${slideState.map((slide, idx) => `
+        <tr>
+          <td>${escapeHtml(slide.slideId)}</td>
+          <td>${escapeHtml(slide.groupName)}</td>
+          <td>${escapeHtml(slide.primaryNames.filter(Boolean).join(", ") || "-")}</td>
+          <td>${escapeHtml(slide.primaryMM || "")}</td>
+          <td>${escapeHtml(channels.map((channel) => slide.secondaryByChannel[channel] ? `${channel}:${slide.secondaryByChannel[channel]}` : "").filter(Boolean).join(", ") || "-")}</td>
+          <td>${escapeHtml(slide.secondaryMM || "")}</td>
+          <td>
+            <select onchange="slideState[${idx}].disposition = this.value">
+              ${SLIDE_DISPOSITIONS.map((disposition) => `
+                <option value="${escapeHtml(disposition)}" ${String(slide.disposition || "stored").toLowerCase() === disposition ? "selected" : ""}>${escapeHtml(disposition)}</option>
+              `).join("")}
+            </select>
+          </td>
+          <td><input type="datetime-local" value="${escapeHtml(slide.imaging && slide.imaging !== "pending" ? slide.imaging : "")}" onchange="slideState[${idx}].imaging = this.value || 'pending'"></td>
+          <td><input list="storage_suggestions_list" value="${escapeHtml(slide.storageLocation || "")}" onchange="slideState[${idx}].storageLocation = this.value"></td>
+          <td><input value="${escapeHtml(slide.plannedUse || "")}" onchange="slideState[${idx}].plannedUse = this.value"></td>
+        </tr>
+      `).join("")}
+    </tbody>
+  `;
+  renderIhcProtocols();
+}
+
+function parseDilutionDenominator(raw) {
+  const text = String(raw || "").trim();
+  const match = text.match(/1\s*(?:\/|:)\s*(\d+(?:\.\d+)?)/i);
+  if (!match) return null;
+  return Number(match[1]);
+}
+
+function buildMixProtocolLines(mixLabel, mixEntries, perSlideVolume, fieldName) {
+  const lines = [];
+  const slideCount = mixEntries.length;
+  const totalVolume = perSlideVolume * slideCount * 1.1;
+  const totals = new Map();
+  mixEntries.forEach((entry) => {
+    entry.items.forEach((item) => {
+      const dilution = parseDilutionDenominator(item.dilution);
+      if (!dilution) return;
+      const addVolume = totalVolume / dilution;
+      totals.set(item.name, {
+        dilution: item.dilution,
+        volume: (totals.get(item.name)?.volume || 0) + addVolume,
+      });
+    });
+  });
+  lines.push(`${mixLabel}`);
+  lines.push(`  Slides covered: ${slideCount}`);
+  lines.push(`  ${fieldName} per slide: ${perSlideVolume.toFixed(1)} µL`);
+  lines.push(`  Total mix with 10% overage: ${totalVolume.toFixed(1)} µL`);
+  let usedVolume = 0;
+  Array.from(totals.entries()).sort((a, b) => a[0].localeCompare(b[0])).forEach(([name, info]) => {
+    usedVolume += info.volume;
+    lines.push(`  ${name}: ${info.dilution || "custom"} -> ${info.volume.toFixed(2)} µL`);
+  });
+  lines.push(`  Buffer/serum base: ${(totalVolume - usedVolume).toFixed(2)} µL`);
+  return lines;
+}
+
+function renderIhcProtocols() {
+  const lines = [];
+  lines.push("PRIMARY MASTER MIXES");
+  lines.push("----------------------------------------");
+  const primaryMixMap = new Map();
+  slideState.forEach((slide) => {
+    if (!slide.primaryMM) return;
+    const items = slide.primaryNames
+      .map((name, idx) => ({ name, dilution: slide.primaryDilutions[idx] || "" }))
+      .filter((item) => item.name);
+    if (!primaryMixMap.has(slide.primaryMM)) primaryMixMap.set(slide.primaryMM, []);
+    primaryMixMap.get(slide.primaryMM).push({ slideId: slide.slideId, items });
+  });
+  if (!primaryMixMap.size) {
+    lines.push("No primary master mixes assigned yet.");
+  } else {
+    Array.from(primaryMixMap.entries()).sort((a, b) => a[0].localeCompare(b[0])).forEach(([mixLabel, entries]) => {
+      lines.push(...buildMixProtocolLines(mixLabel, entries, Number(document.getElementById("antibody_mix_volume_ul").value || 0), "Primary mix volume"));
+      lines.push("");
+    });
+  }
+  lines.push("SECONDARY MASTER MIXES");
+  lines.push("----------------------------------------");
+  const secondaryMixMap = new Map();
+  slideState.forEach((slide) => {
+    if (!slide.secondaryMM) return;
+    const items = channels
+      .map((channel) => ({ name: slide.secondaryByChannel[channel], dilution: slide.secondaryDilutions[channel] || "", channel }))
+      .filter((item) => item.name);
+    if (!secondaryMixMap.has(slide.secondaryMM)) secondaryMixMap.set(slide.secondaryMM, []);
+    secondaryMixMap.get(slide.secondaryMM).push({ slideId: slide.slideId, items });
+  });
+  if (!secondaryMixMap.size) {
+    lines.push("No secondary master mixes assigned yet.");
+  } else {
+    Array.from(secondaryMixMap.entries()).sort((a, b) => a[0].localeCompare(b[0])).forEach(([mixLabel, entries]) => {
+      lines.push(...buildMixProtocolLines(mixLabel, entries, Number(document.getElementById("secondary_volume_ul").value || 0), "Secondary mix volume"));
+      lines.push("");
+    });
+  }
+  if (document.getElementById("edu_enabled").value === "true") {
+    const slideCount = slideState.length;
+    const scale = slideCount * 1.1;
+    const eduRecipe = [
+      ["Deionized water", 154.58],
+      ["10X Click-iT Reaction Buffer", 17.17],
+      ["CuSO4 (Copper Sulfate)", 8.0],
+      ["Alexa Fluor Azide", 0.25],
+      ["1X Buffer Additive (Component F)", 20.0],
+    ];
+    lines.push("EDU REACTION MIX");
+    lines.push("----------------------------------------");
+    lines.push(`Slides covered: ${slideCount}`);
+    lines.push("Prepare at 1x per slide with 10% overage.");
+    lines.push(`Scale factor: ${slideCount} x 1.1 = ${scale.toFixed(2)}`);
+    eduRecipe.forEach(([label, perSlideVolume]) => {
+      const totalVolume = Number(perSlideVolume) * scale;
+      lines.push(`  ${label}: ${Number(perSlideVolume).toFixed(2)} µL per slide -> ${totalVolume.toFixed(2)} µL total`);
+    });
+    const totalPerSlide = eduRecipe.reduce((sum, item) => sum + Number(item[1]), 0);
+    lines.push(`  Total: ${totalPerSlide.toFixed(2)} µL per slide -> ${(totalPerSlide * scale).toFixed(2)} µL total`);
+  }
+  document.getElementById("ihc_protocol_preview").textContent = lines.join("\n");
+}
+
+function downloadIhcProtocols() {
+  const blob = new Blob([document.getElementById("ihc_protocol_preview").textContent], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const name = (document.getElementById("ihc_run_name").value.trim() || "ihc_protocol").replaceAll(/\s+/g, "_");
+  link.href = url;
+  link.download = `${name}_protocol.txt`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function setIhcSaveMode(mode) {
+  document.getElementById("ihc_save_mode").value = mode;
+}
+
+function enableRecordEditing() {
+  recordEditable = true;
+  applyReadonlyState();
+  const button = document.getElementById("modify_record_button");
+  if (button) button.remove();
+}
+
+function applyReadonlyState() {
+  document.querySelectorAll("#workflow_sections input, #workflow_sections select, .page-header input, .panel input, .panel select, .panel textarea, #groups_editor input, #group_count").forEach((el) => {
+    if (el.id === "ihc_run_id" || el.id === "ihc_save_mode" || el.id === "payload_json") return;
+    el.disabled = !recordEditable;
+  });
+  document.querySelectorAll("#workflow_sections button, .panel button").forEach((button) => {
+    if (button.id === "modify_record_button") return;
+    if (button.type === "submit") {
+      button.disabled = !recordEditable;
+    } else if (button.closest("form") || button.getAttribute("onclick")) {
+      button.disabled = !recordEditable;
+    }
+  });
+}
+
+function normalizeIncubationMethod(value) {
+  const clean = String(value || "").trim().toLowerCase();
+  if (clean === "2 hours at room temperature" || clean === "1 hour at room temp") {
+    return "1 hour at room temperature";
+  }
+  return value;
+}
+
+function loadExistingIhcRecord() {
+  if (!INITIAL_PAYLOAD || Object.keys(INITIAL_PAYLOAD).length === 0) return;
+  document.getElementById("ihc_run_name").value = INITIAL_PAYLOAD.ihc_run_name || "";
+  document.getElementById("experiment_date").value = INITIAL_PAYLOAD.experiment_date || "";
+  document.getElementById("serum_type").value = INITIAL_PAYLOAD.serum_type || "Goat";
+  document.getElementById("serum_concentration_percent").value = INITIAL_PAYLOAD.serum_concentration_percent ?? 5;
+  document.getElementById("detergent_type").value = INITIAL_PAYLOAD.detergent_type || "Triton X-100";
+  document.getElementById("detergent_concentration_percent").value = INITIAL_PAYLOAD.detergent_concentration_percent ?? 0.1;
+  document.getElementById("primary_block_length_min").value = INITIAL_PAYLOAD.primary_block_length_min ?? 60;
+  document.getElementById("edu_enabled").value = INITIAL_PAYLOAD.edu_enabled ? "true" : "false";
+  document.getElementById("antibody_mix_volume_ul").value = INITIAL_PAYLOAD.antibody_mix_volume_ul ?? 300;
+  document.getElementById("primary_incubation_method").value = normalizeIncubationMethod(INITIAL_PAYLOAD.primary_incubation_method || "Overnight at 4C");
+  document.getElementById("secondary_volume_ul").value = INITIAL_PAYLOAD.secondary_volume_ul ?? 500;
+  document.getElementById("secondary_incubation_method").value = normalizeIncubationMethod(INITIAL_PAYLOAD.secondary_incubation_method || "Overnight at 4C");
+  const slides = Array.isArray(INITIAL_PAYLOAD.slides) ? INITIAL_PAYLOAD.slides : [];
+  const groups = new Map();
+  slides.forEach((slide) => {
+    const name = slide.group_name || "Group";
+    groups.set(name, (groups.get(name) || 0) + 1);
+  });
+  if (groups.size) {
+    document.getElementById("group_count").value = groups.size;
+    renderGroups();
+    Array.from(groups.entries()).forEach(([name, count], idx) => {
+      const nameEl = document.getElementById(`group_name_${idx}`);
+      const countEl = document.getElementById(`group_slides_${idx}`);
+      if (nameEl) nameEl.value = name;
+      if (countEl) countEl.value = count;
+    });
+    buildWorkflow();
+    slides.forEach((slide, idx) => {
+      const state = slideState[idx];
+      if (!state) return;
+      state.slideId = slide.slide_id || state.slideId;
+      state.groupName = slide.group_name || state.groupName;
+      state.primaryNames = String(slide.primary_set || "").split(",").map((item) => item.trim()).filter(Boolean);
+      state.primaryDilutions = state.primaryNames.map(() => "");
+      while (state.primaryNames.length < (INITIAL_PAYLOAD.edu_enabled ? 2 : 3)) state.primaryNames.push("");
+      while (state.primaryDilutions.length < state.primaryNames.length) state.primaryDilutions.push("");
+      state.primaryMM = slide.primary_mm || "";
+      const secondaryMap = {};
+      String(slide.secondary_set || "").split(",").map((item) => item.trim()).filter(Boolean).forEach((token) => {
+        const parts = token.split(":").map((item) => item.trim()).filter(Boolean);
+        const channel = parts[0];
+        const name = parts.length > 1 ? parts[parts.length - 1] : "";
+        if (channel && name) secondaryMap[channel] = name;
+      });
+      const storedPrimaryDilutions = Array.isArray(slide.primary_dilutions) ? slide.primary_dilutions : [];
+      const storedSecondaryDilutions = slide.secondary_dilutions && typeof slide.secondary_dilutions === "object" ? slide.secondary_dilutions : {};
+      state.secondaryByChannel = Object.fromEntries(channels.map((channel) => [channel, secondaryMap[channel] || ""]));
+      state.primaryDilutions = state.primaryNames.map((name, idx) => storedPrimaryDilutions[idx] || primaryDefaultDilution(name));
+      state.secondaryDilutions = Object.fromEntries(channels.map((channel) => [channel, storedSecondaryDilutions[channel] || secondaryDefaultDilution(secondaryMap[channel] || "")]));
+      state.secondaryMM = slide.secondary_mm || "";
+      state.disposition = SLIDE_DISPOSITIONS.includes(String(slide.disposition || "").toLowerCase()) ? String(slide.disposition || "").toLowerCase() : "stored";
+      state.imaging = slide.imaging || "pending";
+      state.storageLocation = slide.storage_location || "";
+      state.plannedUse = slide.planned_use || "";
+    });
+    renderPrimaryTable();
+    renderSecondaryTable();
+    buildFinalSlideBook();
+  }
+}
+
+function prepareIhcSave() {
+  const runName = document.getElementById("ihc_run_name").value.trim();
+  if (!runName) {
+    alert("IHC run name is required.");
+    return false;
+  }
+  if (!validatePrimaryRows() || !validateSecondaryRows()) {
+    alert("Please fix the antibody compatibility errors before saving.");
+    return false;
+  }
+  const payload = {
+    username: "{{ current_user.username if current_user else '' }}",
+    stage: "final_slide_book",
+    experiment_type: "IHC",
+    ihc_run_name: runName,
+    experiment_date: document.getElementById("experiment_date").value,
+    started_record_on: INITIAL_PAYLOAD.started_record_on || "",
+    serum_type: document.getElementById("serum_type").value.trim(),
+    serum_concentration_percent: Number(document.getElementById("serum_concentration_percent").value || 0),
+    detergent_type: document.getElementById("detergent_type").value.trim(),
+    detergent_concentration_percent: Number(document.getElementById("detergent_concentration_percent").value || 0),
+    primary_block_length_min: Number(document.getElementById("primary_block_length_min").value || 0),
+    edu_enabled: document.getElementById("edu_enabled").value === "true",
+    antibody_mix_volume_ul: Number(document.getElementById("antibody_mix_volume_ul").value || 0),
+    primary_incubation_method: document.getElementById("primary_incubation_method").value.trim(),
+    secondary_volume_ul: Number(document.getElementById("secondary_volume_ul").value || 0),
+    secondary_incubation_method: document.getElementById("secondary_incubation_method").value.trim(),
+    slides: slideState.map((slide) => ({
+      slide_id: slide.slideId,
+      group_name: slide.groupName,
+      primary_set: slide.primaryNames.filter(Boolean).join(", "),
+      primary_dilutions: slide.primaryDilutions,
+      primary_mm: slide.primaryMM || "",
+      secondary_set: channels.map((channel) => slide.secondaryByChannel[channel] ? `${channel}:${slide.secondaryByChannel[channel]}` : "").filter(Boolean).join(", "),
+      secondary_dilutions: slide.secondaryDilutions,
+      secondary_mm: slide.secondaryMM || "",
+      disposition: SLIDE_DISPOSITIONS.includes(String(slide.disposition || "").toLowerCase()) ? String(slide.disposition || "").toLowerCase() : "stored",
+      imaging: slide.imaging || "pending",
+      storage_location: slide.storageLocation || "",
+      planned_use: slide.plannedUse || "",
+    })),
+  };
+  document.getElementById("payload_json").value = JSON.stringify(payload);
+  return true;
+}
+
+renderGroups();
+loadExistingIhcRecord();
+applyReadonlyState();
+</script>
+{% endblock %}

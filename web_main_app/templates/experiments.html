@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Experiments{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Experiments</h1>
+  <p class="lead">Saved runs for the current user.</p>
+  {% if saved %}
+  <p class="success">Saved run {{ saved }}{% if file %} and wrote {{ file }}{% endif %}.</p>
+  {% endif %}
+</section>
+<section class="stack">
+  {% for run in runs %}
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>{{ run.run_name }}</h2>
+        <p class="subtle">{{ run.experiment_type }} · {{ run.created_at }}</p>
+      </div>
+      <span class="pill">{{ run.run_id[:8] }}</span>
+    </div>
+    {% if run.notes %}
+    <p><strong>Notes:</strong> {{ run.notes }}</p>
+    {% endif %}
+    <details>
+      <summary>Payload JSON</summary>
+      <pre>{{ run.payload_pretty }}</pre>
+    </details>
+  </article>
+  {% else %}
+  <div class="empty-state">No experiments saved yet.</div>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}LineageTrace Web{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+  </head>
+  <body>
+    <div class="shell">
+      {% if current_user %}
+      <header class="topbar">
+        <div>
+          <div class="brand">LineageTrace</div>
+          <div class="subtle">Signed in as {{ current_user.display_name }}{% if current_user.role %} ({{ current_user.role }}){% endif %}</div>
+        </div>
+        <form method="post" action="/logout">
+          <button class="ghost-button" type="submit">Log Out</button>
+        </form>
+      </header>
+      <nav class="nav">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/experiments/search">New Experiment</a>
+        <a href="/inventory">Inventory</a>
+        <a href="/records">Records</a>
+        {% if current_user.role == "researcher" %}
+        <a href="/supervisor/setup">Supervisor</a>
+        {% endif %}
+        {% if current_user.role == "admin" or current_user.role == "main_admin" %}
+        <a href="/team">Research Team</a>
+        {% endif %}
+        {% if current_user.role == "main_admin" %}
+        <a href="/access-requests">Access Requests</a>
+        {% endif %}
+      </nav>
+      {% endif %}
+      <main class="content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </body>
+</html>

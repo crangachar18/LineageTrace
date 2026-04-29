@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Request Access{% endblock %}
+{% block content %}
+<section class="hero-card login-card">
+  <h1>Request Access</h1>
+  <p class="lead">{{ email }} is not approved for this LineageTrace database yet.</p>
+  {% if error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+  <form method="post" action="/access/request" class="stack">
+    <input type="hidden" name="access_token" value="{{ access_token }}">
+    <label>
+      <span>Name</span>
+      <input type="text" name="display_name" value="{{ display_name }}" required>
+    </label>
+    <label>
+      <span>Requested Access</span>
+      <select name="requested_role" required>
+        <option value="researcher">Researcher</option>
+        <option value="admin">Admin</option>
+      </select>
+    </label>
+    <label>
+      <span>Note</span>
+      <textarea name="request_note" rows="3" placeholder="Optional context for the main admin"></textarea>
+    </label>
+    <button class="primary-button" type="submit">Send Request</button>
+  </form>
+  <form method="post" action="/logout">
+    <button class="ghost-button" type="submit">Return to Login</button>
+  </form>
+</section>
+{% endblock %}

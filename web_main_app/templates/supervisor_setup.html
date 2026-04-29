@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Supervisor Setup{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Supervisor</h1>
+    <p class="subtle">Choose the admin who should approve access to your records workspace.</p>
+  </div>
+  <a class="ghost-button inventory-pill" href="/dashboard">Dashboard</a>
+</section>
+
+{% if error %}
+<section class="panel error-panel">
+  <strong>Supervisor request failed.</strong>
+  <div class="subtle">{{ error }}</div>
+</section>
+{% endif %}
+
+<section class="panel">
+  {% if supervisor_status.state == "assigned" %}
+  <h2>Supervisor Active</h2>
+  <p class="lead">Your records workspace is linked to {{ supervisor_status.admin_display_name or supervisor_status.admin_email }}.</p>
+  {% elif supervisor_status.state == "pending" %}
+  <h2>Request Pending</h2>
+  <p class="lead">Your request is waiting for {{ supervisor_status.admin_display_name or supervisor_status.admin_email }} to approve it.</p>
+  {% elif supervisor_status.state == "denied" %}
+  <h2>Request Denied</h2>
+  <p class="lead">Choose another admin or resubmit after coordinating with your lab admin.</p>
+  {% else %}
+  <h2>Choose An Admin</h2>
+  <p class="lead">After approval, that admin can view and modify your submitted records.</p>
+  {% endif %}
+
+  {% if supervisor_status.state != "assigned" and supervisor_status.state != "pending" %}
+  {% if admins %}
+  <form method="post" action="/supervisor/setup" class="inline-form supervisor-form">
+    <label>
+      <span>Admin</span>
+      <select name="admin_user_id" required>
+        {% for admin in admins %}
+        <option value="{{ admin.user_id }}">{{ admin.display_name or admin.email }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="primary-button" type="submit">Request Supervisor</button>
+  </form>
+  {% else %}
+  <div class="empty-state">No registered admins have signed in yet.</div>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

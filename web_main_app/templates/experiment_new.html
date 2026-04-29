@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}New Experiment{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>{{ experiment_type_label }}</h1>
+  <p class="lead">Create a new experiment record in the browser app.</p>
+</section>
+<section class="panel">
+  <form method="post" action="/experiments/new" class="stack">
+    <input type="hidden" name="experiment_type" value="{{ experiment_type_label }}">
+    <label>
+      <span>Run Name</span>
+      <input type="text" name="run_name" placeholder="Enter a run name" required>
+    </label>
+    <label>
+      <span>Notes</span>
+      <textarea name="notes" rows="5" placeholder="Freeform notes"></textarea>
+    </label>
+    <label>
+      <span>Custom Payload JSON</span>
+      <textarea name="payload_json" rows="12">{{ payload_json }}</textarea>
+    </label>
+    {% if error %}
+    <p class="error">{{ error }}</p>
+    {% endif %}
+    <button class="primary-button" type="submit">Save Experiment</button>
+  </form>
+</section>
+{% endblock %}

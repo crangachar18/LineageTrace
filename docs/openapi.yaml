@@ -1,0 +1,816 @@
+openapi: 3.1.0
+info:
+  title: SlideApp API
+  version: 0.1.0
+  description: >-
+    API for experiment runs, lineage records, inter-experiment links, auth,
+    and export uploads for SlideApp.
+servers:
+  - url: https://api.slideapp.org/v1
+    description: Production
+
+tags:
+  - name: Auth
+  - name: Experiments
+  - name: Records
+  - name: Links
+  - name: Exports
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ExperimentId:
+      name: experiment_id
+      in: path
+      required: true
+      schema:
+        type: string
+    RecordId:
+      name: record_id
+      in: path
+      required: true
+      schema:
+        type: string
+    LinkId:
+      name: link_id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    User:
+      type: object
+      required: [id, username, role]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        role:
+          type: string
+          enum: [admin, researcher, viewer]
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      required: [access_token, refresh_token, user]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    RefreshResponse:
+      type: object
+      required: [access_token]
+      properties:
+        access_token:
+          type: string
+
+    LogoutRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    ChangePasswordRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+          format: password
+        new_password:
+          type: string
+          format: password
+
+    CreateUserRequest:
+      type: object
+      required: [username, temp_password, role]
+      properties:
+        username:
+          type: string
+        temp_password:
+          type: string
+          format: password
+        role:
+          type: string
+          enum: [admin, researcher, viewer]
+
+    Experiment:
+      type: object
+      required: [id, name, type, date, status, created_by, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [IHC, PCR, ISH, Other]
+        date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, final, archived]
+        conditions:
+          type: object
+          additionalProperties: true
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateExperimentRequest:
+      type: object
+      required: [name, type, date, status]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [IHC, PCR, ISH, Other]
+        date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, final]
+        conditions:
+          type: object
+          additionalProperties: true
+
+    UpdateExperimentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [IHC, PCR, ISH, Other]
+        date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, final, archived]
+        conditions:
+          type: object
+          additionalProperties: true
+
+    FinalizeExperimentResponse:
+      type: object
+      required: [id, status, finalized_at]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [final]
+        finalized_at:
+          type: string
+          format: date-time
+
+    Record:
+      type: object
+      required:
+        [id, experiment_id, out, parent_record_ids, status, payload, created_by, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        experiment_id:
+          type: string
+        out:
+          type: string
+          description: Lineage output type code (e.g. spec, tis, slide, amp).
+        parent_record_ids:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [draft, final, archived]
+        payload:
+          type: object
+          additionalProperties: true
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateRecordRequest:
+      type: object
+      required: [experiment_id, out, status, payload]
+      properties:
+        experiment_id:
+          type: string
+        out:
+          type: string
+          enum:
+            - spec
+            - tis
+            - nuc
+            - diss
+            - facs
+            - brna
+            - cdna
+            - amp
+            - clone
+            - eandc
+            - sec
+            - dna
+            - slide
+            - ishslide
+            - mini
+            - midi
+            - digest
+            - gel
+            - gext
+            - probe
+            - seq
+            - cryo
+            - rnaseq
+            - snseq
+            - scseq
+        parent_record_ids:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [draft, final]
+        payload:
+          type: object
+          additionalProperties: true
+
+    UpdateRecordRequest:
+      type: object
+      properties:
+        parent_record_ids:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [draft, final, archived]
+        payload:
+          type: object
+          additionalProperties: true
+
+    BulkCreateRecordsRequest:
+      type: object
+      required: [records]
+      properties:
+        records:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CreateRecordRequest'
+
+    BulkCreateRecordsResponse:
+      type: object
+      required: [created]
+      properties:
+        created:
+          type: array
+          items:
+            $ref: '#/components/schemas/Record'
+
+    ExperimentLink:
+      type: object
+      required: [id, child_experiment_id, parent_experiment_id, link_type, created_by, created_at]
+      properties:
+        id:
+          type: string
+        child_experiment_id:
+          type: string
+        parent_experiment_id:
+          type: string
+        link_type:
+          type: string
+          enum: [derived_from, follows_protocol_of, repeat_of, related_to]
+        note:
+          type: string
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CreateExperimentLinkRequest:
+      type: object
+      required: [child_experiment_id, parent_experiment_id, link_type]
+      properties:
+        child_experiment_id:
+          type: string
+        parent_experiment_id:
+          type: string
+        link_type:
+          type: string
+          enum: [derived_from, follows_protocol_of, repeat_of, related_to]
+        note:
+          type: string
+
+    ExportUploadRequest:
+      type: object
+      required: [format, content]
+      properties:
+        format:
+          type: string
+          enum: [json]
+        content:
+          type: object
+          additionalProperties: true
+
+    ExportUploadResponse:
+      type: object
+      required: [id, experiment_id, format, created_at]
+      properties:
+        id:
+          type: string
+        experiment_id:
+          type: string
+        format:
+          type: string
+          enum: [json]
+        created_at:
+          type: string
+          format: date-time
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and receive tokens.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token refreshed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout and revoke refresh token.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          description: Logged out.
+
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change current user's password.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204':
+          description: Password changed.
+
+  /auth/users:
+    post:
+      tags: [Auth]
+      summary: Create user with temporary password (admin only).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /experiments:
+    post:
+      tags: [Experiments]
+      summary: Create experiment.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExperimentRequest'
+      responses:
+        '201':
+          description: Experiment created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Experiment'
+    get:
+      tags: [Experiments]
+      summary: List experiments.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, final, archived]
+      responses:
+        '200':
+          description: Experiment list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Experiment'
+
+  /experiments/{experiment_id}:
+    get:
+      tags: [Experiments]
+      summary: Get experiment by id.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+      responses:
+        '200':
+          description: Experiment found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Experiment'
+        '404':
+          description: Not found.
+    patch:
+      tags: [Experiments]
+      summary: Update experiment.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateExperimentRequest'
+      responses:
+        '200':
+          description: Updated experiment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Experiment'
+
+  /experiments/{experiment_id}/finalize:
+    post:
+      tags: [Experiments]
+      summary: Finalize experiment.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+      responses:
+        '200':
+          description: Experiment finalized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinalizeExperimentResponse'
+
+  /experiments/{experiment_id}/records:
+    get:
+      tags: [Experiments]
+      summary: List records for experiment.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+      responses:
+        '200':
+          description: Records list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Record'
+
+  /experiments/{experiment_id}/lineage:
+    get:
+      tags: [Experiments]
+      summary: Get lineage graph payload for experiment.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+      responses:
+        '200':
+          description: Lineage graph.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [nodes, edges]
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  edges:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  /records:
+    post:
+      tags: [Records]
+      summary: Create lineage record.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRecordRequest'
+      responses:
+        '201':
+          description: Record created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Record'
+    get:
+      tags: [Records]
+      summary: Query records.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: experiment_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: out
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Records list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Record'
+
+  /records/{record_id}:
+    get:
+      tags: [Records]
+      summary: Get record by id.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RecordId'
+      responses:
+        '200':
+          description: Record found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Record'
+        '404':
+          description: Not found.
+    patch:
+      tags: [Records]
+      summary: Update record (including backfilled parents).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RecordId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRecordRequest'
+      responses:
+        '200':
+          description: Updated record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Record'
+
+  /records/bulk:
+    post:
+      tags: [Records]
+      summary: Bulk create records.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkCreateRecordsRequest'
+      responses:
+        '201':
+          description: Records created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkCreateRecordsResponse'
+
+  /links:
+    post:
+      tags: [Links]
+      summary: Create experiment-to-experiment link.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExperimentLinkRequest'
+      responses:
+        '201':
+          description: Link created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentLink'
+    get:
+      tags: [Links]
+      summary: List experiment links.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: experiment_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Links list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExperimentLink'
+
+  /links/{link_id}:
+    delete:
+      tags: [Links]
+      summary: Delete experiment link.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LinkId'
+      responses:
+        '204':
+          description: Link deleted.
+
+  /experiments/{experiment_id}/exports:
+    post:
+      tags: [Exports]
+      summary: Upload export payload (e.g., JSON final run blob).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportUploadRequest'
+      responses:
+        '201':
+          description: Export stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportUploadResponse'
+
+  /experiments/{experiment_id}/exports/latest:
+    get:
+      tags: [Exports]
+      summary: Fetch latest export payload for an experiment.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ExperimentId'
+      responses:
+        '200':
+          description: Latest export.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportUploadRequest'
+        '404':
+          description: No export found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

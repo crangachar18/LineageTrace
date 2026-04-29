@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+{% block title %}Inventory{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Inventory</h1>
+  </div>
+  <form method="get" action="/inventory" class="inventory-filter-form">
+    <input type="hidden" name="category" value="{{ selected_category or '' }}">
+    <label>
+      <span>Visibility</span>
+      <select name="visibility" onchange="this.form.submit()">
+        <option value="all" {% if inventory_visibility == "all" %}selected{% endif %}>All</option>
+        <option value="shared" {% if inventory_visibility == "shared" %}selected{% endif %}>Shared</option>
+        <option value="personal" {% if inventory_visibility == "personal" %}selected{% endif %}>Personal</option>
+      </select>
+    </label>
+  </form>
+</section>
+
+{% if error %}
+<section class="panel error-panel">
+  <strong>Inventory update failed.</strong>
+  <div class="subtle">{{ error }}</div>
+</section>
+{% endif %}
+{% if notice %}
+<section class="panel success-panel">
+  <strong>{{ notice }}</strong>
+</section>
+{% endif %}
+
+<section class="inventory-layout" data-selected-category="{{ selected_category or '' }}">
+  <aside class="panel inventory-sidebar">
+    <div class="panel-header">
+      <div>
+        <h2>Tables</h2>
+      </div>
+    </div>
+    <div class="stack">
+      {% for section in inventory_sections %}
+      <button
+        type="button"
+        class="ghost-button inventory-cabinet-button {% if loop.first %}active{% endif %}"
+        data-cabinet="{{ section.key }}"
+        onclick="showInventoryCabinet('{{ section.key }}', this)"
+      >
+        {{ section.label }}
+      </button>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <div class="inventory-main">
+    {% for section in inventory_sections %}
+    <article class="panel cabinet-panel {% if not loop.first %}hidden-sheet{% endif %}" id="inventory-{{ section.key }}">
+      <div class="panel-header">
+        <div>
+          <h2>{{ section.label }}</h2>
+          <p class="subtle">{{ section.categories | length }} sheet{% if section.categories|length != 1 %}s{% endif %}</p>
+        </div>
+      </div>
+
+      <div class="inventory-pill-row" role="tablist" aria-label="{{ section.label }} sheets">
+        {% for category in section.categories %}
+        <button
+          type="button"
+          class="ghost-button inventory-pill {% if loop.first %}active{% endif %}"
+          data-section="{{ section.key }}"
+          data-target="{{ section.key }}-{{ category.category }}"
+          onclick="showInventorySheet('{{ section.key }}', '{{ section.key }}-{{ category.category }}', this)"
+        >
+          {{ category.label }}
+        </button>
+        {% endfor %}
+      </div>
+
+      <div class="stack">
+        {% for category in section.categories %}
+        <section
+          id="{{ section.key }}-{{ category.category }}"
+          class="inventory-sheet {% if not loop.first %}hidden-sheet{% endif %}"
+        >
+        <div class="panel-header inventory-sheet-header">
+          <div class="inventory-sheet-title">
+            <h3>{{ category.label }}</h3>
+            <p class="subtle">{{ category.count }} item{% if category.count != 1 %}s{% endif %}</p>
+          </div>
+          <div class="inventory-sheet-actions">
+          <form method="post" action="/inventory/import" enctype="multipart/form-data" class="csv-import-form">
+            <input type="hidden" name="category" value="{{ category.category }}">
+            {% if inventory_role in ["admin", "main_admin"] %}
+            <input type="hidden" name="visibility" value="Shared">
+            {% endif %}
+            <input
+              id="csv-file-{{ category.category }}"
+              class="csv-import-input"
+              type="file"
+              name="csv_file"
+              accept=".csv,text/csv"
+              required
+              onchange="this.form.submit()"
+            >
+            <button
+              type="button"
+              class="ghost-button compact-group-button csv-file-pill"
+              onclick="document.getElementById('csv-file-{{ category.category }}').click()"
+            >
+              Add as CSV
+            </button>
+          </form>
+          {% if inventory_role == "main_admin" %}
+          <form
+            method="post"
+            action="/inventory/delete-all"
+            class="delete-all-form"
+            onsubmit="return confirmDeleteAllInventory(this, {{ category.label | tojson }})"
+          >
+            <input type="hidden" name="category" value="{{ category.category }}">
+            <input type="hidden" name="visibility" value="{{ inventory_visibility or 'all' }}">
+            <input type="hidden" name="confirm_text" value="">
+            <button type="submit" class="danger-button compact-group-button">Delete All</button>
+          </form>
+          {% endif %}
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="workflow-table inventory-table">
+            <thead>
+              <tr>
+                {% for column in category.columns %}
+                <th>{{ column }}</th>
+                {% endfor %}
+                {% if category.can_show_actions %}
+                <th>Actions</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% if category.rows %}
+              {% for row in category.rows %}
+              <tr>
+                {% for value in row.cells %}
+                <td>{{ value }}</td>
+                {% endfor %}
+                {% if category.can_show_actions %}
+                <td class="inventory-actions-cell">
+                  <div class="row-action-buttons">
+                  {% if row.can_edit %}
+                  <button
+                    type="button"
+                    class="ghost-button compact-group-button"
+                    onclick='loadInventoryRow("form-{{ category.category }}", {{ row.form_values | tojson }}, {{ row.original_name | tojson }})'
+                  >
+                    Edit
+                  </button>
+                  {% endif %}
+                  {% if row.can_delete %}
+                  <form method="post" action="/inventory/delete" class="inline-form inline-delete-form">
+                    <input type="hidden" name="category" value="{{ category.category }}">
+                    <input type="hidden" name="name" value="{{ row.original_name }}">
+                    <button type="submit" class="danger-button compact-group-button">Delete</button>
+                  </form>
+                  {% endif %}
+                  </div>
+                </td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+              {% else %}
+              <tr>
+                <td colspan="{{ category.columns|length + (1 if category.can_show_actions else 0) }}">
+                  <div class="empty-state">No items in {{ category.label }} yet.</div>
+                </td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="inventory-editor">
+          <div class="panel subtle-panel">
+            <div class="panel-header inventory-sheet-header">
+              <div>
+                <h3>{% if inventory_role in ["admin", "main_admin"] or category.category in ["pcr_amplicon", "slibrary"] %}Add Or Edit Row{% else %}Add Personal Row{% endif %}</h3>
+                <p class="subtle">
+                  {% if inventory_role in ["admin", "main_admin"] %}
+                  Admins can edit any visible row, add rows, and change visibility.
+                  {% elif category.category in ["pcr_amplicon", "slibrary"] %}
+                  Researchers can add rows and edit their own Personal product rows.
+                  {% else %}
+                  Researchers can add rows here, and they will be saved with Personal visibility.
+                  {% endif %}
+                </p>
+              </div>
+              {% if inventory_role in ["admin", "main_admin"] %}
+              <button type="button" class="ghost-button compact-group-button" onclick='resetInventoryForm("form-{{ category.category }}")'>
+                New Row
+              </button>
+              {% endif %}
+            </div>
+
+            <form
+              id="form-{{ category.category }}"
+              method="post"
+              action="/inventory"
+              class="stack"
+              onsubmit='return serializeInventoryForm(this)'
+            >
+              <input type="hidden" name="category" value="{{ category.category }}">
+              <input type="hidden" name="original_name" value="">
+              <input type="hidden" name="fields_json" value="{}">
+              <div class="inventory-form-grid">
+                {% for field in category.fields %}
+                  {% if field.field != "researcher_name" and (inventory_role in ["admin", "main_admin"] or field.field != "visibility") %}
+                  <label class="{% if category.category == 'slibrary' and field.field == 'imaging' %}inventory-datetime-field{% endif %}">
+                    <span>{{ field.label }}</span>
+                    {% if field.field == "visibility" and inventory_role in ["admin", "main_admin"] %}
+                    <select data-field="{{ field.field }}">
+                      <option value="Shared">Shared</option>
+                      <option value="Personal">Personal</option>
+                    </select>
+                    {% elif category.category == "pcr_primer" and field.field == "aliquot" %}
+                    <select data-field="{{ field.field }}">
+                      <option value=""></option>
+                      <option value="Stock">Stock</option>
+                      <option value="Dilution">Dilution</option>
+                    </select>
+                    {% elif category.category == "pcr_primer" and field.field == "orientation" %}
+                    <select data-field="{{ field.field }}">
+                      <option value=""></option>
+                      <option value="F">F</option>
+                      <option value="R">R</option>
+                    </select>
+                    {% elif category.category == "slibrary" and field.field == "imaging" %}
+                    <input type="datetime-local" data-field="{{ field.field }}">
+                    {% else %}
+                    <input type="text" data-field="{{ field.field }}" {% if field.field == "name" %}required{% endif %}>
+                    {% endif %}
+                  </label>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              <div class="inventory-editor-actions">
+                <button type="submit" class="primary-button">
+                  {% if inventory_role in ["admin", "main_admin"] or category.category in ["pcr_amplicon", "slibrary"] %}Save Row{% else %}Add Personal Row{% endif %}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {% if inventory_role in ["admin", "main_admin"] %}
+          <div class="panel subtle-panel">
+            <div class="panel-header inventory-sheet-header">
+              <div>
+                <h3>Add Attribute Column</h3>
+                <p class="subtle">Add a new field to the {{ category.label }} sheet.</p>
+              </div>
+            </div>
+            <form method="post" action="/inventory/columns" class="inventory-column-form">
+              <input type="hidden" name="category" value="{{ category.category }}">
+              <label>
+                <span>Column Label</span>
+                <input type="text" name="label" required>
+              </label>
+              <label>
+                <span>Field Key</span>
+                <input type="text" name="field_key" placeholder="optional_custom_key">
+              </label>
+              <button type="submit" class="ghost-button">Add Column</button>
+            </form>
+          </div>
+          {% endif %}
+        </div>
+        </section>
+        {% endfor %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<script>
+function showInventoryCabinet(sectionKey, buttonEl) {
+  document.querySelectorAll(".inventory-cabinet-button").forEach((button) => {
+    button.classList.remove("active");
+  });
+  buttonEl.classList.add("active");
+
+  document.querySelectorAll(".cabinet-panel").forEach((panel) => {
+    panel.classList.add("hidden-sheet");
+  });
+  const targetPanel = document.getElementById(`inventory-${sectionKey}`);
+  if (targetPanel) targetPanel.classList.remove("hidden-sheet");
+}
+
+function showInventorySheet(sectionKey, targetId, buttonEl) {
+  document.querySelectorAll(`.inventory-pill[data-section="${sectionKey}"]`).forEach((button) => {
+    button.classList.remove("active");
+  });
+  buttonEl.classList.add("active");
+
+  document.querySelectorAll(`#inventory-${sectionKey} .inventory-sheet`).forEach((sheet) => {
+    sheet.classList.add("hidden-sheet");
+  });
+  const target = document.getElementById(targetId);
+  if (target) target.classList.remove("hidden-sheet");
+}
+
+function initializeInventorySelection() {
+  const layout = document.querySelector(".inventory-layout");
+  const selectedCategory = layout ? layout.dataset.selectedCategory : "";
+  if (selectedCategory) {
+    const selectedPill = document.querySelector(`.inventory-pill[data-target$="-${selectedCategory}"]`);
+    if (selectedPill) {
+      const sectionKey = selectedPill.dataset.section;
+      const cabinetButton = document.querySelector(`.inventory-cabinet-button[data-cabinet="${sectionKey}"]`);
+      if (cabinetButton) showInventoryCabinet(sectionKey, cabinetButton);
+      showInventorySheet(sectionKey, selectedPill.dataset.target, selectedPill);
+      return;
+    }
+  }
+  document.querySelectorAll(".cabinet-panel").forEach((panel) => {
+    const firstPill = panel.querySelector(".inventory-pill");
+    if (firstPill) firstPill.click();
+  });
+}
+
+initializeInventorySelection();
+
+function loadInventoryRow(formId, rowValues, originalName) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  form.querySelector('input[name="original_name"]').value = originalName || "";
+  form.querySelectorAll("[data-field]").forEach((input) => {
+    const field = input.dataset.field;
+    input.value = normalizeInventoryInputValue(input, rowValues[field] || "");
+  });
+}
+
+function normalizeInventoryInputValue(input, value) {
+  const raw = String(value || "").trim();
+  if (input.type === "datetime-local") {
+    if (!raw || raw.toLowerCase() === "pending") return "";
+    return raw.slice(0, 16);
+  }
+  return raw;
+}
+
+function resetInventoryForm(formId) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  form.reset();
+  form.querySelector('input[name="original_name"]').value = "";
+}
+
+function serializeInventoryForm(form) {
+  const payload = {};
+  form.querySelectorAll("[data-field]").forEach((input) => {
+    payload[input.dataset.field] = input.value;
+  });
+  if (!("visibility" in payload)) {
+    payload.visibility = "Personal";
+  }
+  form.querySelector('input[name="fields_json"]').value = JSON.stringify(payload);
+  return true;
+}
+
+function confirmDeleteAllInventory(form, label) {
+  const typed = window.prompt(`Back up and delete all visible rows in ${label}? Type DELETE to continue.`);
+  if (typed !== "DELETE") return false;
+  form.querySelector('input[name="confirm_text"]').value = typed;
+  return true;
+}
+</script>
+{% endblock %}

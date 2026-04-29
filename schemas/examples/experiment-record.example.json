@@ -1,0 +1,129 @@
+{
+  "experiment_id": "exp_2026_02_16_001",
+  "owner_user_id": "user_researcher",
+  "name": "GFAP Optimization Pilot",
+  "experiment_date": "2026-02-16",
+  "conditions": {
+    "goal": "Optimize signal-to-noise for GFAP staining",
+    "temperature_c": 22
+  },
+  "status": "draft",
+  "wizard_state": {
+    "last_completed_step": "protocol_defaults",
+    "can_resume": true,
+    "saved_at": "2026-02-16T18:20:00Z"
+  },
+  "groups": [
+    {
+      "group_id": "grp_control",
+      "name": "Control",
+      "planned_slide_count": 2,
+      "sort_order": 0,
+      "group_conditions": {
+        "treatment": "vehicle"
+      }
+    },
+    {
+      "group_id": "grp_treat_a",
+      "name": "Treatment A",
+      "planned_slide_count": 2,
+      "sort_order": 1,
+      "group_conditions": {
+        "drug": "CompoundA",
+        "dose_uM": 5
+      }
+    }
+  ],
+  "protocol_defaults": {
+    "detergent_type": "Triton X-100",
+    "detergent_concentration": {
+      "value": 0.3,
+      "unit": "%"
+    },
+    "serum_type": "Donkey serum",
+    "serum_concentration": {
+      "value": 5,
+      "unit": "%"
+    },
+    "blocking_agent": "BSA",
+    "block_concentration": {
+      "value": 3,
+      "unit": "%"
+    },
+    "block_duration_minutes": 60,
+    "primary_incubation_minutes": 960,
+    "secondary_block_minutes": 30,
+    "secondary_incubation_minutes": 120,
+    "edu_used": false,
+    "edu_conditions": [],
+    "dapi_concentration": {
+      "value": 1,
+      "unit": "ug/mL"
+    },
+    "dapi_incubation_minutes": 10,
+    "mounting_medium": "Fluoromount-G",
+    "notes": "Pilot settings"
+  },
+  "primary_antibodies": [
+    {
+      "antibody_id": "ab_primary_gfap_rabbit",
+      "target_name": "GFAP",
+      "host_species": "rabbit",
+      "dilution": {
+        "value": 1,
+        "unit": "1:500"
+      },
+      "incubation_minutes": 960,
+      "notes": null
+    }
+  ],
+  "secondary_antibodies": [
+    {
+      "antibody_id": "ab_secondary_anti_rabbit_488",
+      "target_name": "Anti-rabbit",
+      "host_species": "donkey",
+      "dilution": {
+        "value": 1,
+        "unit": "1:1000"
+      },
+      "incubation_minutes": 120,
+      "notes": null
+    }
+  ],
+  "secondary_suggestions": [
+    {
+      "primary_antibody_id": "ab_primary_gfap_rabbit",
+      "suggested_secondary_antibody_id": "ab_secondary_anti_rabbit_488",
+      "reason": "Primary host is rabbit; anti-rabbit secondary with compatible fluorophore",
+      "confidence": 0.95
+    }
+  ],
+  "assets": [
+    {
+      "asset_id": "asset_protocol_001",
+      "asset_type": "protocol_document",
+      "uri": "smb://labshare/protocols/gfap_pilot_v1.pdf",
+      "content_hash": null,
+      "captured_at": null,
+      "metadata": {
+        "version": "v1"
+      },
+      "created_by_user_id": "user_researcher",
+      "created_at": "2026-02-16T18:15:00Z"
+    }
+  ],
+  "sharing": [
+    {
+      "user_id": "user_researcher",
+      "role": "owner",
+      "can_add_notes": true
+    },
+    {
+      "user_id": "user_alex",
+      "role": "viewer",
+      "can_add_notes": true
+    }
+  ],
+  "created_at": "2026-02-16T18:00:00Z",
+  "updated_at": "2026-02-16T18:20:00Z"
+}

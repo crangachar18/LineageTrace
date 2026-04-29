@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Protocol Builder{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Protocol Builder</h1>
+  <p class="lead">Draft a quick protocol document in the browser app.</p>
+</section>
+<section class="two-column">
+  <div class="panel">
+    <form method="post" action="/protocol-builder" class="stack">
+      <label>
+        <span>Experiment Type</span>
+        <select name="experiment_type">
+          <option {% if experiment_type == "Immunohistochemistry (IHC)" %}selected{% endif %}>Immunohistochemistry (IHC)</option>
+          <option {% if experiment_type == "Polymerase Chain Reaction (PCR)" %}selected{% endif %}>Polymerase Chain Reaction (PCR)</option>
+          <option {% if experiment_type == "FACS" %}selected{% endif %}>FACS</option>
+        </select>
+      </label>
+      <label>
+        <span>Title</span>
+        <input type="text" name="title" value="{{ title }}">
+      </label>
+      <label>
+        <span>Details</span>
+        <textarea name="details" rows="12">{{ details }}</textarea>
+      </label>
+      <button class="primary-button" type="submit">Generate Draft</button>
+    </form>
+  </div>
+  <div class="panel">
+    <h2>Protocol Draft</h2>
+    {% if protocol_text %}
+    <pre>{{ protocol_text }}</pre>
+    {% else %}
+    <div class="empty-state">No protocol draft generated yet.</div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

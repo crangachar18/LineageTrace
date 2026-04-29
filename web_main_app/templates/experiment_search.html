@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Experiment Search{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>Experiment Type</h1>
+  <form method="get" action="/experiments/search" class="search-form">
+    <input type="text" name="q" value="{{ query }}" placeholder="Search experiments">
+    <button class="primary-button" type="submit">Search</button>
+  </form>
+</section>
+<section class="results-list">
+  {% if "Immunohistochemistry (IHC)" in matches %}
+  <a class="result-item" href="/experiments/new?experiment_type=Immunohistochemistry%20%28IHC%29">Immunohistochemistry (IHC)</a>
+  {% endif %}
+  {% if "Polymerase Chain Reaction (PCR)" in matches %}
+  <a class="result-item" href="/experiments/new?experiment_type=Polymerase%20Chain%20Reaction%20%28PCR%29">Polymerase Chain Reaction (PCR)</a>
+  {% endif %}
+  {% if not matches %}
+  <div class="empty-state">No experiment types matched this search.</div>
+  {% endif %}
+</section>
+{% endblock %}

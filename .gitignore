@@ -1,0 +1,13 @@
+# Local connection profiles and secrets
+.env
+.env.*
+!.env.example
+lineagetrace_connections.env
+*.local.env
+
+# macOS
+.DS_Store
+
+# Python/runtime artifacts
+__pycache__/
+*.py[cod]
