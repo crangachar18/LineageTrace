@@ -51,6 +51,14 @@ create table if not exists public.app_users (
     updated_at timestamptz not null default now()
 );
 
+-- Repair projects that were initialized with an earlier beta schema.
+alter table public.app_users
+    add column if not exists created_at timestamptz not null default now(),
+    add column if not exists updated_at timestamptz not null default now();
+
+create unique index if not exists idx_app_users_email
+    on public.app_users (email);
+
 create table if not exists public.researcher_assignments (
     researcher_user_id uuid primary key references auth.users(id) on delete cascade,
     admin_user_id uuid not null references auth.users(id) on delete cascade,
