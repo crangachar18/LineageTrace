@@ -22,6 +22,16 @@ create table if not exists public.authorized_users (
 create unique index if not exists idx_authorized_users_lower_email
     on public.authorized_users (lower(email));
 
+-- Repair projects that were initialized with older role labels/constraints.
+update public.authorized_users
+set role = replace(replace(lower(role), ' ', '_'), '-', '_')
+where role <> replace(replace(lower(role), ' ', '_'), '-', '_');
+
+alter table public.authorized_users
+    drop constraint if exists authorized_users_role_check,
+    add constraint authorized_users_role_check
+        check (role in ('main_admin', 'admin', 'researcher'));
+
 create table if not exists public.access_requests (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users(id) on delete cascade,
@@ -55,6 +65,15 @@ create table if not exists public.app_users (
 alter table public.app_users
     add column if not exists created_at timestamptz not null default now(),
     add column if not exists updated_at timestamptz not null default now();
+
+update public.app_users
+set role = replace(replace(lower(role), ' ', '_'), '-', '_')
+where role <> replace(replace(lower(role), ' ', '_'), '-', '_');
+
+alter table public.app_users
+    drop constraint if exists app_users_role_check,
+    add constraint app_users_role_check
+        check (role in ('main_admin', 'admin', 'researcher'));
 
 create unique index if not exists idx_app_users_email
     on public.app_users (email);
