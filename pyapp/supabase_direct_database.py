@@ -96,8 +96,10 @@ def establish_session(access_token: str, refresh_token: str = "", fallback_usern
     )
     save_session_settings(session)
     ctx = _Context(connection.server_url, connection.anon_key, clean_access_token, user_id, email)
-    _ensure_current_user_row(ctx)
-    profile = _current_authorized_user(ctx)
+    profile = _lookup_authorized_user(ctx)
+    if profile is None:
+        raise RuntimeError("This Google account is not approved for LineageTrace yet.")
+    _ensure_current_user_row(ctx, role=profile["role"])
     session.role = profile["role"]
     session.display_name = profile["display_name"]
     save_session_settings(session)
@@ -941,17 +943,17 @@ def _refresh_context_session(ctx: _Context) -> _Context:
     return _Context(ctx.base_url, ctx.anon_key, access_token, user_id, username, new_refresh_token)
 
 
-def _ensure_current_user_row(ctx: _Context) -> None:
-    role = _current_authorized_user(ctx)["role"]
+def _ensure_current_user_row(ctx: _Context, role: str = "") -> None:
+    clean_role = role.strip() or _current_authorized_user(ctx)["role"]
     _rest_json(
         ctx,
         method="POST",
         path="/rest/v1/app_users",
-        query={"on_conflict": "user_id"},
+        query={"on_conflict": "email"},
         payload={
             "user_id": ctx.user_id,
             "email": ctx.username,
-            "role": role,
+            "role": clean_role,
             "updated_at": _now_iso(),
         },
         extra_headers={
@@ -960,7 +962,7 @@ def _ensure_current_user_row(ctx: _Context) -> None:
     )
 
 
-def _current_authorized_user(ctx: _Context) -> dict[str, str]:
+def _lookup_authorized_user(ctx: _Context) -> dict[str, str] | None:
     rows = _rest_json(
         ctx,
         method="GET",
@@ -979,6 +981,13 @@ def _current_authorized_user(ctx: _Context) -> dict[str, str]:
             "role": role or "researcher",
             "display_name": display_name,
         }
+    return None
+
+
+def _current_authorized_user(ctx: _Context) -> dict[str, str]:
+    profile = _lookup_authorized_user(ctx)
+    if profile is not None:
+        return profile
     return {"role": "researcher", "display_name": ""}
 
 
