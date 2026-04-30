@@ -805,6 +805,13 @@ def _display_name_from_email(email: str) -> str:
     return token.title() if token else ""
 
 
+def _normalize_role(role: str) -> str:
+    clean_role = role.strip().lower().replace(" ", "_").replace("-", "_")
+    if clean_role in {"main_admin", "admin", "researcher"}:
+        return clean_role
+    return "researcher"
+
+
 def _email_for_user_id(ctx: _Context, user_id: str) -> str:
     clean_id = user_id.strip()
     if not clean_id:
@@ -975,10 +982,10 @@ def _lookup_authorized_user(ctx: _Context) -> dict[str, str] | None:
         },
     )
     if isinstance(rows, list) and rows:
-        role = str(rows[0].get("role", "")).strip()
+        role = _normalize_role(str(rows[0].get("role", "")))
         display_name = str(rows[0].get("display_name", "")).strip()
         return {
-            "role": role or "researcher",
+            "role": role,
             "display_name": display_name,
         }
     return None
