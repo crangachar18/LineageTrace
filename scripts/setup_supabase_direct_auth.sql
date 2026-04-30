@@ -19,18 +19,32 @@ create table if not exists public.authorized_users (
     updated_at timestamptz not null default now()
 );
 
-create unique index if not exists idx_authorized_users_lower_email
-    on public.authorized_users (lower(email));
-
--- Repair projects that were initialized with older role labels/constraints.
-update public.authorized_users
-set role = replace(replace(lower(role), ' ', '_'), '-', '_')
-where role <> replace(replace(lower(role), ' ', '_'), '-', '_');
+-- Repair projects that were initialized with an earlier beta schema.
+alter table public.authorized_users
+    drop constraint if exists authorized_users_role_check;
 
 alter table public.authorized_users
-    drop constraint if exists authorized_users_role_check,
+    add column if not exists role text not null default 'researcher',
+    add column if not exists active boolean not null default true,
+    add column if not exists display_name text not null default '',
+    add column if not exists created_at timestamptz not null default now(),
+    add column if not exists updated_at timestamptz not null default now();
+
+update public.authorized_users
+set role = replace(replace(lower(role), ' ', '_'), '-', '_');
+
+update public.authorized_users
+set role = 'researcher'
+where role not in ('main_admin', 'admin', 'researcher');
+
+alter table public.authorized_users
+    alter column role set default 'researcher',
+    alter column role set not null,
     add constraint authorized_users_role_check
         check (role in ('main_admin', 'admin', 'researcher'));
+
+create unique index if not exists idx_authorized_users_lower_email
+    on public.authorized_users (lower(email));
 
 create table if not exists public.access_requests (
     id uuid primary key default gen_random_uuid(),
@@ -63,15 +77,22 @@ create table if not exists public.app_users (
 
 -- Repair projects that were initialized with an earlier beta schema.
 alter table public.app_users
+    drop constraint if exists app_users_role_check;
+
+alter table public.app_users
     add column if not exists created_at timestamptz not null default now(),
     add column if not exists updated_at timestamptz not null default now();
 
 update public.app_users
-set role = replace(replace(lower(role), ' ', '_'), '-', '_')
-where role <> replace(replace(lower(role), ' ', '_'), '-', '_');
+set role = replace(replace(lower(role), ' ', '_'), '-', '_');
+
+update public.app_users
+set role = 'researcher'
+where role not in ('main_admin', 'admin', 'researcher');
 
 alter table public.app_users
-    drop constraint if exists app_users_role_check,
+    alter column role set default 'researcher',
+    alter column role set not null,
     add constraint app_users_role_check
         check (role in ('main_admin', 'admin', 'researcher'));
 
@@ -715,3 +736,6 @@ with check (
 -- on conflict (researcher_user_id) do update
 -- set admin_user_id = excluded.admin_user_id,
 --     assigned_by_user_id = excluded.assigned_by_user_id;
+
+-- Make Supabase REST/PostgREST pick up repaired tables and columns promptly.
+select pg_notify('pgrst', 'reload schema');
