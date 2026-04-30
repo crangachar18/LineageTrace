@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import csv
 import io
@@ -24,6 +25,8 @@ except Exception:  # pragma: no cover - optional local convenience dependency
 
 if load_dotenv is not None:
     load_dotenv()
+
+logger = logging.getLogger("lineagetrace.web")
 
 from pyapp.database import (
     clear_experiment_runs,
@@ -917,6 +920,20 @@ def auth_session(
             status_code=503,
         )
     except RuntimeError as exc:
+        logger.exception("Supabase session establishment failed for %s", username or "<unknown>")
+        if "not approved" not in str(exc).lower():
+            return templates.TemplateResponse(
+                request,
+                "login.html",
+                _template_context(
+                    request,
+                    error=(
+                        "Supabase sign-in worked, but LineageTrace could not finish the app session. "
+                        f"Server detail: {exc}"
+                    ),
+                ),
+                status_code=500,
+            )
         return _access_request_response(
             request,
             email=username,
