@@ -906,15 +906,16 @@ def auth_session(
     username = str(claims.get("email", "")).strip()
     try:
         role = establish_session(access_token, refresh_token)
-    except SupabaseSchemaNotReadyError:
+    except SupabaseSchemaNotReadyError as exc:
+        logger.exception("Supabase schema check failed for %s", username or "<unknown>")
         return templates.TemplateResponse(
             request,
             "login.html",
             _template_context(
                 request,
                 error=(
-                    "Supabase sign-in worked, but the LineageTrace tables are not installed yet. "
-                    "Run scripts/setup_supabase_direct_auth.sql in the Supabase SQL Editor, then try again."
+                    "Supabase sign-in worked, but Supabase REST could not see one of the LineageTrace tables. "
+                    f"Server detail: {exc}"
                 ),
             ),
             status_code=503,
