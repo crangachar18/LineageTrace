@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import contextvars
 import json
 import uuid
 from datetime import datetime, timezone
@@ -25,6 +26,28 @@ class SupabaseSchemaNotReadyError(RuntimeError):
 
 class SupabaseAuthExpiredError(RuntimeError):
     pass
+
+
+_REQUEST_SESSION_UNSET = object()
+_request_session_settings: contextvars.ContextVar[SessionSettings | None | object] = contextvars.ContextVar(
+    "lineagetrace_supabase_session",
+    default=_REQUEST_SESSION_UNSET,
+)
+
+
+def set_request_session_settings(settings: SessionSettings | None) -> contextvars.Token:
+    return _request_session_settings.set(settings)
+
+
+def reset_request_session_settings(token: contextvars.Token) -> None:
+    _request_session_settings.reset(token)
+
+
+def current_session_settings() -> SessionSettings | None:
+    settings = _request_session_settings.get()
+    if settings is not _REQUEST_SESSION_UNSET:
+        return settings if isinstance(settings, SessionSettings) else None
+    return load_session_settings()
 
 
 def init_auth_db() -> None:
@@ -291,7 +314,7 @@ def submit_supervisor_request(admin_user_id: str) -> None:
     admin_id = admin_user_id.strip()
     if not admin_id:
         raise ValueError("Choose an admin supervisor.")
-    session = load_session_settings()
+    session = current_session_settings()
     if session is None or session.role != "researcher":
         raise ValueError("Only researchers need to request an admin supervisor.")
     status = get_supervisor_status()
@@ -780,7 +803,7 @@ def _context_from_access_token(access_token: str) -> _Context:
 
 def _require_context() -> _Context:
     connection = load_connection_settings()
-    session = load_session_settings()
+    session = current_session_settings()
     if connection is None or connection.mode != "supabase":
         raise RuntimeError("Supabase connection settings are not configured.")
     if session is None or not session.access_token:
@@ -935,18 +958,18 @@ def _refresh_context_session(ctx: _Context) -> _Context:
     claims = _decode_jwt_payload(access_token)
     user_id = str(claims.get("sub", "")).strip() or ctx.user_id
     username = str(claims.get("email", "")).strip() or ctx.username
-    existing = load_session_settings()
-    save_session_settings(
-        SessionSettings(
-            connection_mode="supabase",
-            server_url=ctx.base_url,
-            username=username,
-            display_name=(existing.display_name if existing else ""),
-            role=(existing.role if existing else "researcher"),
-            access_token=access_token,
-            refresh_token=new_refresh_token,
-        )
+    existing = current_session_settings()
+    refreshed = SessionSettings(
+        connection_mode="supabase",
+        server_url=ctx.base_url,
+        username=username,
+        display_name=(existing.display_name if existing else ""),
+        role=(existing.role if existing else "researcher"),
+        access_token=access_token,
+        refresh_token=new_refresh_token,
     )
+    save_session_settings(refreshed)
+    _request_session_settings.set(refreshed)
     return _Context(ctx.base_url, ctx.anon_key, access_token, user_id, username, new_refresh_token)
 
 

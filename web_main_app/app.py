@@ -43,6 +43,7 @@ from pyapp.database import (
 )
 from pyapp.antibody_rules import load_primaries_from_inventory
 from pyapp.app_config import (
+    SessionSettings,
     clear_session_settings,
     get_authorized_login_emails,
     get_display_name_overrides,
@@ -55,6 +56,7 @@ from pyapp.supabase_direct_database import (
     SupabaseSchemaNotReadyError,
     approve_access_request,
     backup_inventory_rows,
+    current_session_settings,
     deny_access_request,
     delete_standard_objects_by_ids,
     establish_session,
@@ -64,6 +66,7 @@ from pyapp.supabase_direct_database import (
     list_supervisor_requests,
     list_visible_record_owners,
     review_supervisor_request,
+    set_request_session_settings,
     submit_access_request,
     submit_supervisor_request,
 )
@@ -85,6 +88,31 @@ async def _supabase_auth_expired_handler(request: Request, exc: SupabaseAuthExpi
     request.session.clear()
     clear_session_settings()
     return _redirect("/")
+
+
+def _browser_supabase_session(request: Request) -> SessionSettings | None:
+    access_token = str(request.session.get("supabase_access_token", "")).strip()
+    if not access_token:
+        return None
+    connection = load_connection_settings()
+    return SessionSettings(
+        connection_mode="supabase",
+        server_url=(connection.server_url if connection else str(request.session.get("supabase_server_url", ""))),
+        username=str(request.session.get("username", "")).strip(),
+        display_name=str(request.session.get("display_name", "")).strip(),
+        role=str(request.session.get("role", "")).strip() or "researcher",
+        access_token=access_token,
+        refresh_token=str(request.session.get("supabase_refresh_token", "")).strip(),
+    )
+
+
+def _store_browser_supabase_session(request: Request, settings: SessionSettings) -> None:
+    request.session["username"] = settings.username
+    request.session["role"] = settings.role
+    request.session["display_name"] = settings.display_name
+    request.session["supabase_server_url"] = settings.server_url
+    request.session["supabase_access_token"] = settings.access_token
+    request.session["supabase_refresh_token"] = settings.refresh_token
 
 
 EXPERIMENT_TYPES: list[str] = [
@@ -198,7 +226,12 @@ def _current_user(request: Request) -> dict[str, str] | None:
     return {"username": username, "display_name": display_name or _fallback_display_name(username), "role": role or "researcher"}
 
 
+def _activate_browser_supabase_session(request: Request) -> None:
+    set_request_session_settings(_browser_supabase_session(request))
+
+
 def _require_user(request: Request) -> dict[str, str]:
+    _activate_browser_supabase_session(request)
     user = _current_user(request)
     if user is None:
         raise PermissionError
@@ -458,7 +491,7 @@ def _display_researcher_name(username: str) -> str:
     override = _display_name_override(username)
     if override:
         return override
-    current_session = load_session_settings()
+    current_session = current_session_settings() or load_session_settings()
     if current_session is not None and username.strip().lower() == current_session.username.strip().lower():
         if current_session.display_name.strip():
             return current_session.display_name.strip()
@@ -953,10 +986,12 @@ def auth_session(
         )
     # The Supabase session helper persists the email as its username. Decode it
     # through the same JWT claims to keep the browser session aligned.
-    saved_session = load_session_settings()
+    saved_session = current_session_settings() or load_session_settings()
     request.session["username"] = username
     request.session["role"] = role
     request.session["display_name"] = saved_session.display_name if saved_session else ""
+    if saved_session is not None and saved_session.access_token:
+        _store_browser_supabase_session(request, saved_session)
     if _researcher_needs_supervisor_setup(role):
         return _redirect("/supervisor/setup")
     return _redirect("/dashboard")
