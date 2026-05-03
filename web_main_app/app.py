@@ -223,6 +223,11 @@ def _current_user(request: Request) -> dict[str, str] | None:
     display_name = str(request.session.get("display_name", "")).strip()
     if not username:
         return None
+    connection = load_connection_settings()
+    if connection is not None and connection.mode == "supabase":
+        access_token = str(request.session.get("supabase_access_token", "")).strip()
+        if not access_token:
+            return None
     return {"username": username, "display_name": display_name or _fallback_display_name(username), "role": role or "researcher"}
 
 

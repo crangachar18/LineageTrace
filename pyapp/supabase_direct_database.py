@@ -807,7 +807,7 @@ def _require_context() -> _Context:
     if connection is None or connection.mode != "supabase":
         raise RuntimeError("Supabase connection settings are not configured.")
     if session is None or not session.access_token:
-        raise RuntimeError("No Supabase session is available. Sign in again and retry.")
+        raise SupabaseAuthExpiredError("No Supabase session is available. Sign in again and retry.")
     claims = _decode_jwt_payload(session.access_token)
     user_id = str(claims.get("sub", "")).strip()
     username = session.username or str(claims.get("email", "")).strip()
